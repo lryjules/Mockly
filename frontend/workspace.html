@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mockly - Carte Mentale de Préparation</title>
+    <meta name="description" content="Préparez votre entretien avec une carte mentale interactive et un coach IA">
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <nav class="app-nav">
+        <a href="workspace.html" class="active">📄 Coach</a>
+        <a href="/results">📊 Historique</a>
+        <a href="/configuration">⚙️ Configuration</a>
+        <div class="nav-right">
+            <a href="auth.html" onclick="localStorage.removeItem('mocklyUser')">↪ Déconnexion</a>
+        </div>
+    </nav>
+    <div id="app" class="app">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-title">🐼 Mockly</div>
+            </div>
+
+            <!-- Upload Section -->
+            <div class="sidebar-section" id="uploadSection">
+                <div class="section-title">1. Déposer votre CV</div>
+                <div class="upload-zone" id="uploadZone">
+                    <div class="upload-icon">📄</div>
+                    <div class="upload-text">Glissez votre CV ici</div>
+                    <div class="upload-hint">PDF ou DOCX</div>
+                </div>
+                <input type="file" id="cvFile" accept=".pdf,.docx" hidden>
+            </div>
+
+            <!-- Info Section -->
+            <div class="sidebar-section hidden" id="infoSection">
+                <div class="section-title">Informations CV</div>
+                <div id="cvInfo" style="font-size: 0.75rem; color: var(--vscode-text);"></div>
+            </div>
+
+            <!-- Context Section -->
+            <div class="sidebar-section hidden" id="contextSection">
+                <div class="section-title">2. Contexte d'entretien</div>
+                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    <div>
+                        <label
+                            style="font-size: 0.75rem; color: var(--vscode-text-muted); display: block; margin-bottom: 0.25rem;">Secteur
+                            *</label>
+                        <input type="text" id="sectorInput" placeholder="Ex: Technologie"
+                            style="width: 100%; padding: 0.5rem; background: var(--vscode-line); border: 1px solid var(--vscode-border); border-radius: 4px; color: var(--vscode-text); font-size: 0.875rem;">
+                    </div>
+                    <div>
+                        <label
+                            style="font-size: 0.75rem; color: var(--vscode-text-muted); display: block; margin-bottom: 0.25rem;">Entreprise</label>
+                        <input type="text" id="companyInput" placeholder="Ex: Google"
+                            style="width: 100%; padding: 0.5rem; background: var(--vscode-line); border: 1px solid var(--vscode-border); border-radius: 4px; color: var(--vscode-text); font-size: 0.875rem;">
+                    </div>
+                    <div>
+                        <label
+                            style="font-size: 0.75rem; color: var(--vscode-text-muted); display: block; margin-bottom: 0.25rem;">Poste</label>
+                        <input type="text" id="roleInput" placeholder="Ex: Développeur"
+                            style="width: 100%; padding: 0.5rem; background: var(--vscode-line); border: 1px solid var(--vscode-border); border-radius: 4px; color: var(--vscode-text); font-size: 0.875rem;">
+                    </div>
+                    <button id="generateBtn"
+                        style="padding: 0.75rem; background: var(--vscode-blue); border: none; border-radius: 4px; color: white; cursor: pointer; font-size: 0.875rem;">
+                        Générer la carte mentale
+                    </button>
+                </div>
+            </div>
+
+            <!-- Legend -->
+            <div class="sidebar-section">
+                <div class="section-title">Légende</div>
+                <div style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.75rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <div style="width: 16px; height: 16px; background: var(--node-cv); border-radius: 3px;"></div>
+                        <span>CV (Racine)</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <div style="width: 16px; height: 16px; background: var(--node-conseil); border-radius: 3px;">
+                        </div>
+                        <span>Conseils</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <div style="width: 16px; height: 16px; background: var(--node-question); border-radius: 3px;">
+                        </div>
+                        <span>Questions</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <div style="width: 16px; height: 16px; background: var(--node-secteur); border-radius: 3px;">
+                        </div>
+                        <span>Secteurs</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <div style="width: 16px; height: 16px; background: var(--node-chat); border-radius: 3px;"></div>
+                        <span>Coach IA</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Canvas -->
+        <div class="canvas-container">
+            <svg class="connections-svg" id="connectionsSvg"></svg>
+            <div class="canvas" id="canvas">
+                <!-- Les nodes seront ajoutés dynamiquement ici -->
+            </div>
+
+            <!-- Controls -->
+            <div class="controls">
+                <div class="zoom-indicator">100%</div>
+                <button class="control-btn" id="zoomInBtn" title="Zoom avant (ou molette)">+</button>
+                <button class="control-btn" id="zoomOutBtn" title="Zoom arrière (ou molette)">−</button>
+                <button class="control-btn" id="resetViewBtn" title="Réinitialiser la vue">🎯</button>
+                <button class="control-btn" id="fitViewBtn" title="Ajuster à la vue">⊡</button>
+                <button class="control-btn" id="openChatBtn" title="Ouvrir le Coach IA">💬</button>
+            </div>
+
+            <!-- Navigation hint -->
+            <div class="navigation-hint">
+                💡 <strong>Navigation:</strong> Molette = Zoom | Clic + Glisser = Déplacer | Clic sur nuage = Déplacer
+                nuage
+            </div>
+
+            <!-- Minimap -->
+            <div class="minimap hidden" id="minimap">
+                <canvas class="minimap-canvas" id="minimapCanvas"></canvas>
+            </div>
+        </div>
+
+        <!-- Chat Panel -->
+        <div class="chat-panel" id="chatPanel">
+            <div class="chat-header">
+                <div class="chat-title">💬 Coach IA</div>
+                <button class="chat-close" id="chatClose">×</button>
+            </div>
+            <div class="chat-messages" id="chatMessages">
+                <div style="text-align: center; padding: 2rem; color: var(--vscode-text-muted); font-size: 0.875rem;">
+                    Cliquez sur un nœud "Coach" pour démarrer la conversation
+                </div>
+            </div>
+            <div class="chat-input-area">
+                <textarea class="chat-input" id="chatInput" placeholder="Posez votre question..." rows="2"
+                    disabled></textarea>
+                <button class="chat-send" id="chatSend" disabled>Envoyer</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>

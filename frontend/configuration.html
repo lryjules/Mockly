@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mockly — Configuration</title>
+  <meta name="description" content="Modifiez les informations professionnelles utilisées par Mockly pour personnaliser vos simulations d'entretien.">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    html, body { overflow: auto; height: auto; }
+
+    .config-layout {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 2rem 1.2rem 3rem;
+    }
+
+    .config-header { margin-bottom: 1.5rem; }
+    .config-header h1 { font-size: 1.3rem; color: var(--vscode-text-bright); margin-bottom: 0.4rem; }
+    .config-header p { color: var(--vscode-text-muted); font-size: 0.9rem; line-height: 1.6; }
+
+    .config-status { min-height: 1.2rem; font-size: 0.9rem; color: var(--vscode-blue); margin-top: 0.3rem; }
+
+    .config-locked {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: var(--vscode-text-muted);
+      background: var(--vscode-sidebar);
+      border: 1px solid var(--vscode-border);
+      border-radius: 14px;
+    }
+    .config-locked a { color: var(--vscode-blue); }
+  </style>
+</head>
+<body>
+  <nav class="app-nav">
+    <a href="workspace.html">📄 Coach</a>
+    <a href="/results">📊 Historique</a>
+    <a href="/configuration" class="active">⚙️ Configuration</a>
+    <div class="nav-right">
+      <a href="auth.html" onclick="localStorage.removeItem('mocklyUser')">↪ Déconnexion</a>
+    </div>
+  </nav>
+
+  <div class="config-layout">
+    <div class="config-header">
+      <h1>⚙️ Informations professionnelles</h1>
+      <p>Ces informations ont été recueillies par Mockly lors de la création de ton compte et sont utilisées pour personnaliser tes simulations d'entretien. Tu peux les modifier ici à tout moment.</p>
+    </div>
+
+    <div id="configLocked" class="config-locked hidden">
+      Connecte-toi pour accéder à tes informations. <a href="auth.html">Se connecter</a>
+    </div>
+
+    <form id="configForm" class="section-card auth-form hidden">
+      <label>
+        Niveau d'étude
+        <input id="studyLevelInput" type="text" placeholder="Ex: Licence, Master, BTS, etc.">
+      </label>
+      <label>
+        Domaine visé
+        <input id="targetDomainInput" type="text" placeholder="Ex: Data, Tech, Marketing, RH...">
+      </label>
+      <label>
+        Objectif actuel
+        <input id="currentGoalInput" type="text" placeholder="Ex: un stage, un premier emploi, une évolution...">
+      </label>
+      <button id="configSaveBtn" type="submit" class="primary-btn full-width">Enregistrer</button>
+      <p id="configStatus" class="config-status"></p>
+    </form>
+  </div>
+
+  <script src="configuration.js"></script>
+</body>
+</html>

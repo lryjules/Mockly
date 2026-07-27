@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interview Coach – Historique des sessions</title>
+  <meta name="description" content="Consultez l'historique complet de vos sessions de préparation à l'entretien.">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    /* ── Overrides pour la page résultats (scroll autorisé) ── */
+    html, body { overflow: auto; height: auto; }
+
+    /* ── Layout global ── */
+    .results-layout {
+      display: flex;
+      height: calc(100vh - 35px);
+      overflow: hidden;
+    }
+
+    /* ── Panneau gauche – liste des sessions ── */
+    .sessions-panel {
+      width: 280px;
+      flex-shrink: 0;
+      background: var(--vscode-sidebar);
+      border-right: 1px solid var(--vscode-border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .panel-header {
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid var(--vscode-border);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      min-height: 35px;
+    }
+    .panel-title {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--vscode-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      flex: 1;
+    }
+    .refresh-btn {
+      background: none;
+      border: none;
+      color: var(--vscode-text-muted);
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 0.2rem;
+      border-radius: 3px;
+      transition: color 0.2s, background 0.2s;
+      line-height: 1;
+    }
+    .refresh-btn:hover { color: var(--vscode-text); background: var(--vscode-line); }
+
+    .sessions-list { overflow-y: auto; flex: 1; }
+
+    .session-item {
+      padding: 0.6rem 0.75rem;
+      border-bottom: 1px solid var(--vscode-border);
+      cursor: pointer;
+      transition: background 0.15s;
+      position: relative;
+    }
+    .session-item:hover   { background: var(--vscode-line); }
+    .session-item.active  {
+      background: rgba(86,156,214,0.08);
+      border-left: 2px solid var(--vscode-blue);
+    }
+    .session-item.active .session-name { color: var(--vscode-blue); }
+
+    .session-name {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--vscode-text);
+      margin-bottom: 0.2rem;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .session-file {
+      font-size: 0.7rem;
+      color: var(--vscode-text-muted);
+      margin-bottom: 0.35rem;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .session-chips { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+    .chip {
+      font-size: 0.65rem;
+      padding: 0.1rem 0.4rem;
+      border-radius: 3px;
+      font-weight: 500;
+    }
+    .chip-blue   { background: rgba(86,156,214,0.15);  color: var(--vscode-blue);   border: 1px solid rgba(86,156,214,0.3);  }
+    .chip-green  { background: rgba(106,153,85,0.15);  color: var(--vscode-green);  border: 1px solid rgba(106,153,85,0.3);  }
+    .chip-yellow { background: rgba(220,220,170,0.15); color: var(--vscode-yellow); border: 1px solid rgba(220,220,170,0.3); }
+    .chip-purple { background: rgba(197,134,192,0.15); color: var(--vscode-purple); border: 1px solid rgba(197,134,192,0.3); }
+    .chip-orange { background: rgba(206,145,120,0.15); color: var(--vscode-orange); border: 1px solid rgba(206,145,120,0.3); }
+    .session-date { font-size: 0.65rem; color: var(--vscode-text-muted); margin-top: 0.3rem; }
+
+    .empty-state {
+      padding: 2rem 1rem;
+      text-align: center;
+      color: var(--vscode-text-muted);
+      font-size: 0.75rem;
+      line-height: 1.7;
+    }
+    .empty-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+
+    /* ── Panneau droit – détail ── */
+    .detail-panel {
+      flex: 1;
+      overflow-y: auto;
+      background: var(--vscode-editor);
+    }
+
+    /* Welcome screen */
+    .welcome {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      text-align: center;
+      gap: 0.75rem;
+      padding: 2rem;
+      color: var(--vscode-text-muted);
+    }
+    .welcome-icon { font-size: 3rem; }
+    .welcome h2 { font-size: 1rem; font-weight: 600; color: var(--vscode-text); }
+    .welcome p { font-size: 0.8125rem; max-width: 340px; line-height: 1.7; }
+    .welcome-link {
+      display: inline-block;
+      margin-top: 0.25rem;
+      padding: 0.4rem 1rem;
+      border-radius: 4px;
+      background: var(--vscode-blue);
+      color: white;
+      font-size: 0.8125rem;
+      text-decoration: none;
+      transition: background 0.2s;
+    }
+    .welcome-link:hover { background: #4a8bc2; }
+
+    /* Detail content */
+    .detail-content { padding: 1.5rem; max-width: 900px; }
+
+    /* Hero */
+    .detail-hero {
+      background: var(--vscode-sidebar);
+      border: 1px solid var(--vscode-border);
+      border-radius: 6px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+      flex-wrap: wrap;
+    }
+    .hero-avatar {
+      width: 42px; height: 42px;
+      border-radius: 4px;
+      background: rgba(86,156,214,0.2);
+      border: 1px solid var(--vscode-blue);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.25rem;
+      flex-shrink: 0;
+    }
+    .hero-info { flex: 1; min-width: 0; }
+    .hero-name { font-size: 1rem; font-weight: 700; color: var(--vscode-text-bright); margin-bottom: 0.15rem; }
+    .hero-meta { font-size: 0.75rem; color: var(--vscode-text-muted); }
+    .hero-stats { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+    .stat { text-align: center; }
+    .stat-value { font-size: 1.25rem; font-weight: 700; color: var(--vscode-blue); line-height: 1; }
+    .stat-label { font-size: 0.65rem; color: var(--vscode-text-muted); margin-top: 0.15rem; text-transform: uppercase; letter-spacing: 0.4px; }
+    .score-badge {
+      padding: 0.4rem 0.9rem;
+      border-radius: 4px;
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+    .score-high   { background: rgba(106,153,85,0.2);   color: var(--vscode-green);  border: 1px solid rgba(106,153,85,0.4);   }
+    .score-mid    { background: rgba(206,145,120,0.2);  color: var(--vscode-orange); border: 1px solid rgba(206,145,120,0.4);  }
+    .score-low    { background: rgba(255,68,68,0.2);    color: #ff6b6b;              border: 1px solid rgba(255,68,68,0.4);    }
+
+    /* Tabs – style éditeur de code */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--vscode-border);
+      margin-bottom: 1.25rem;
+      background: var(--vscode-sidebar);
+      border-radius: 4px 4px 0 0;
+    }
+    .tab-btn {
+      padding: 0.5rem 1rem;
+      border: none;
+      border-right: 1px solid var(--vscode-border);
+      background: transparent;
+      color: var(--vscode-text-muted);
+      cursor: pointer;
+      font-size: 0.8125rem;
+      font-family: inherit;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: color 0.15s, background 0.15s;
+    }
+    .tab-btn:hover { color: var(--vscode-text); background: var(--vscode-line); }
+    .tab-btn.active {
+      color: var(--vscode-text);
+      background: var(--vscode-editor);
+      border-bottom-color: var(--vscode-blue);
+    }
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+
+    /* Cards */
+    .card {
+      background: var(--vscode-sidebar);
+      border: 1px solid var(--vscode-border);
+      border-radius: 6px;
+      padding: 1rem;
+      margin-bottom: 0.75rem;
+    }
+    .card-title {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--vscode-text-bright);
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    /* CV data grid */
+    .cv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 0.5rem; }
+    .cv-field { background: var(--vscode-line); padding: 0.6rem 0.75rem; border-radius: 4px; }
+    .cv-field-label { font-size: 0.65rem; color: var(--vscode-text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.2rem; }
+    .cv-field-value { font-size: 0.8125rem; font-weight: 500; color: var(--vscode-text); }
+    .tag-list { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.5rem; }
+    .tag {
+      background: rgba(86,156,214,0.12);
+      color: var(--vscode-blue);
+      padding: 0.15rem 0.45rem;
+      border-radius: 3px;
+      font-size: 0.7rem;
+      border: 1px solid rgba(86,156,214,0.25);
+    }
+
+    /* Analysis grid */
+    .analysis-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    .bullet-list { list-style: none; display: flex; flex-direction: column; gap: 0.3rem; }
+    .bullet-list li { font-size: 0.8rem; display: flex; gap: 0.4rem; color: var(--vscode-text); line-height: 1.5; }
+    .bullet-list li::before { content: '→'; color: var(--vscode-blue); flex-shrink: 0; }
+
+    /* Evaluations */
+    .eval-card { border-left: 3px solid var(--vscode-green); }
+    .eval-header { display: flex; align-items: flex-start; gap: 0.6rem; margin-bottom: 0.6rem; flex-wrap: wrap; }
+    .eval-score-badge {
+      padding: 0.2rem 0.55rem;
+      border-radius: 3px;
+      font-weight: 700;
+      font-size: 0.8rem;
+      flex-shrink: 0;
+      margin-top: 0.1rem;
+    }
+    .eval-question { font-weight: 600; font-size: 0.875rem; color: var(--vscode-text-bright); flex: 1; }
+    .eval-date { font-size: 0.65rem; color: var(--vscode-text-muted); white-space: nowrap; }
+    .eval-user-response {
+      font-style: italic;
+      font-size: 0.75rem;
+      color: var(--vscode-text-muted);
+      margin-bottom: 0.6rem;
+      padding: 0.5rem 0.6rem;
+      background: var(--vscode-line);
+      border-radius: 4px;
+      border-left: 2px solid var(--vscode-border);
+    }
+    .eval-overall { font-size: 0.8rem; color: var(--vscode-text); margin-bottom: 0.6rem; line-height: 1.6; }
+    .eval-body { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin-top: 0.6rem; }
+    .eval-section { background: var(--vscode-line); border-radius: 4px; padding: 0.6rem; }
+    .eval-section-title { font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.4rem; }
+    .eval-section ul { padding-left: 1rem; }
+    .eval-section li { font-size: 0.75rem; line-height: 1.6; color: var(--vscode-text); }
+    .eval-example {
+      background: rgba(86,156,214,0.08);
+      border-left: 2px solid var(--vscode-blue);
+      padding: 0.5rem 0.75rem;
+      font-size: 0.75rem;
+      font-style: italic;
+      border-radius: 4px;
+      margin-top: 0.6rem;
+      color: var(--vscode-text);
+    }
+    .follow-up-list { display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.5rem; }
+    .follow-up-item {
+      background: var(--vscode-line);
+      border-left: 2px solid var(--vscode-purple);
+      padding: 0.35rem 0.6rem;
+      border-radius: 3px;
+      font-size: 0.75rem;
+      color: var(--vscode-text);
+      cursor: default;
+    }
+
+    /* Chat messages */
+    .msg-list { display: flex; flex-direction: column; gap: 0.6rem; }
+    .msg { display: flex; gap: 0.5rem; align-items: flex-start; }
+    .msg.user { flex-direction: row-reverse; }
+    .msg-avatar {
+      width: 24px; height: 24px; border-radius: 3px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; font-size: 0.8rem;
+      background: var(--vscode-line);
+    }
+    .msg-bubble {
+      max-width: 72%;
+      padding: 0.5rem 0.75rem;
+      border-radius: 4px;
+      font-size: 0.8125rem;
+      line-height: 1.6;
+    }
+    .msg.assistant .msg-bubble {
+      background: var(--vscode-line);
+      color: var(--vscode-text);
+      border-left: 3px solid var(--vscode-blue);
+    }
+    .msg.user .msg-bubble {
+      background: var(--vscode-selection);
+      color: var(--vscode-text-bright);
+    }
+    .msg-time { font-size: 0.6rem; color: var(--vscode-text-muted); margin-top: 0.15rem; }
+
+    /* Generations */
+    .gen-header { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
+    .gen-sector { font-size: 0.875rem; font-weight: 600; color: var(--vscode-text-bright); }
+    .gen-date { font-size: 0.65rem; color: var(--vscode-text-muted); margin-left: auto; }
+    .question-list { display: flex; flex-direction: column; gap: 0.3rem; }
+    .question-item {
+      background: var(--vscode-line);
+      padding: 0.4rem 0.6rem;
+      border-radius: 3px;
+      font-size: 0.75rem;
+      color: var(--vscode-text);
+      border-left: 2px solid var(--vscode-yellow);
+    }
+
+    /* Loading states */
+    .loading-state {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 0.75rem; padding: 3rem;
+      color: var(--vscode-text-muted); font-size: 0.8rem;
+    }
+
+    @media (max-width: 768px) {
+      .results-layout { flex-direction: column; }
+      .sessions-panel { width: 100%; height: 220px; }
+      .eval-body { grid-template-columns: 1fr; }
+      .analysis-grid { grid-template-columns: 1fr; }
+      .cv-grid { grid-template-columns: 1fr 1fr; }
+      .tabs { overflow-x: auto; }
+      .tab-btn { padding: 0.5rem 0.65rem; font-size: 0.72rem; white-space: nowrap; }
+      .detail-hero { gap: 0.75rem; }
+      .hero-stats { gap: 0.9rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Navigation style VS Code tabs -->
+<nav class="app-nav">
+  <a href="workspace.html">📄 Coach</a>
+  <a href="/results" class="active">📊 Historique</a>
+  <a href="/configuration">⚙️ Configuration</a>
+  <div class="nav-right">
+    <span class="nav-badge" id="totalBadge">...</span>
+    <a href="auth.html" onclick="localStorage.removeItem('mocklyUser')">↪ Déconnexion</a>
+  </div>
+</nav>
+
+<div class="results-layout">
+  <!-- Panneau gauche -->
+  <aside class="sessions-panel">
+    <div class="panel-header">
+      <span class="panel-title">📂 Sessions</span>
+      <span style="font-size:.65rem;color:var(--vscode-text-muted)" id="sessionCount"></span>
+      <button class="refresh-btn" id="refreshBtn" title="Rafraîchir">↻</button>
+    </div>
+    <div class="sessions-list" id="sessionsList">
+      <div class="loading-state"><div class="spinner"></div></div>
+    </div>
+  </aside>
+
+  <!-- Panneau droit -->
+  <main class="detail-panel" id="detailPanel">
+    <div class="welcome" id="welcomeScreen">
+      <div class="welcome-icon">📊</div>
+      <h2>Historique de vos sessions</h2>
+      <p>Sélectionnez une session à gauche pour consulter les détails : profil CV, questions générées, évaluations IA et historique du chat.</p>
+      <a class="welcome-link" href="/">Démarrer une nouvelle session →</a>
+    </div>
+  </main>
+</div>
+
+<script>
+const API = 'http://localhost:5001/api';
+
+function getCurrentUser() {
+  const stored = localStorage.getItem('mocklyUser');
+  if (!stored) return null;
+  try {
+    return JSON.parse(stored);
+  } catch (error) {
+    return null;
+  }
+}
+
+function formatDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString('fr-FR', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+
+function scoreColor(s) {
+  if (s >= 7) return 'var(--vscode-green)';
+  if (s >= 4) return 'var(--vscode-orange)';
+  return '#ff6b6b';
+}
+function scoreBgClass(s) {
+  if (!s) return 'chip-blue';
+  if (s >= 7) return 'chip-green';
+  if (s >= 4) return 'chip-orange';
+  return '';
+}
+function scoreBadgeClass(s) {
+  if (!s) return '';
+  if (s >= 7) return 'score-high';
+  if (s >= 4) return 'score-mid';
+  return 'score-low';
+}
+
+async function loadSessions() {
+  const user = getCurrentUser();
+  if (!user) {
+    document.getElementById('sessionCount').textContent = '';
+    document.getElementById('totalBadge').textContent = '';
+    document.getElementById('sessionsList').innerHTML = `
+      <div class="empty-state"><div class="empty-icon">🔒</div>Connecte-toi pour voir ton historique.<br><a class="welcome-link" style="margin-top:.75rem;display:inline-block" href="auth.html">Se connecter</a></div>`;
+    return;
+  }
+
+  document.getElementById('sessionsList').innerHTML = `<div class="loading-state"><div class="spinner"></div></div>`;
+  try {
+    const res = await fetch(`${API}/sessions?user_id=${encodeURIComponent(user.id)}`);
+    const sessions = await res.json();
+    document.getElementById('sessionCount').textContent = sessions.length;
+    document.getElementById('totalBadge').textContent = `${sessions.length} session${sessions.length > 1 ? 's' : ''}`;
+
+    const list = document.getElementById('sessionsList');
+    if (!sessions.length) {
+      list.innerHTML = `<div class="empty-state"><div class="empty-icon">🗂️</div>Aucune session.<br>Uploadez un CV pour commencer.</div>`;
+      return;
+    }
+    list.innerHTML = sessions.map(s => `
+      <div class="session-item" data-id="${s.id}" onclick="selectSession('${s.id}')">
+        <div class="session-name">${escHtml(s.candidate_name)}</div>
+        <div class="session-file">📄 ${escHtml(s.cv_filename || '—')}</div>
+        <div class="session-chips">
+          <span class="chip chip-blue">⚡ ${s.nb_generations}</span>
+          <span class="chip chip-purple">💬 ${s.nb_messages}</span>
+          ${s.nb_evaluations > 0 ? `<span class="chip chip-green">✅ ${s.nb_evaluations}</span>` : ''}
+          ${s.avg_score != null ? `<span class="chip ${scoreBgClass(s.avg_score)}">⭐ ${s.avg_score}/10</span>` : ''}
+        </div>
+        <div class="session-date">🕒 ${formatDate(s.created_at)}</div>
+      </div>`).join('');
+  } catch {
+    document.getElementById('sessionsList').innerHTML = `
+      <div class="empty-state"><div class="empty-icon">⚠️</div>Erreur de connexion.<br>Vérifiez que le serveur est lancé.</div>`;
+  }
+}
+
+async function selectSession(sessionId) {
+  document.querySelectorAll('.session-item').forEach(el => el.classList.remove('active'));
+  document.querySelector(`.session-item[data-id="${sessionId}"]`)?.classList.add('active');
+
+  const panel = document.getElementById('detailPanel');
+  panel.innerHTML = `<div class="loading-state"><div class="spinner"></div><span>Chargement...</span></div>`;
+
+  try {
+    const user = getCurrentUser();
+    const res = await fetch(`${API}/sessions/${sessionId}?user_id=${encodeURIComponent(user?.id || '')}`);
+    const data = await res.json();
+    renderDetail(data);
+  } catch {
+    panel.innerHTML = `<div class="loading-state" style="color:#ff6b6b">⚠️ Erreur lors du chargement</div>`;
+  }
+}
+
+function renderDetail({ session, generations, messages, evaluations }) {
+  const cvData   = JSON.parse(session.cv_data  || '{}');
+  const analysis = JSON.parse(session.analysis || '{}');
+  const avgScore = evaluations.length
+    ? (evaluations.reduce((s, e) => s + (e.score || 0), 0) / evaluations.length).toFixed(1)
+    : null;
+
+  document.getElementById('detailPanel').innerHTML = `
+  <div class="detail-content">
+    <div class="detail-hero">
+      <div class="hero-avatar">👤</div>
+      <div class="hero-info">
+        <div class="hero-name">${escHtml(cvData.nom || 'Candidat')}</div>
+        <div class="hero-meta">📄 ${escHtml(session.cv_filename || '—')} &nbsp;·&nbsp; 🕒 ${formatDate(session.created_at)}</div>
+      </div>
+      <div class="hero-stats">
+        <div class="stat"><div class="stat-value">${generations.length}</div><div class="stat-label">Générations</div></div>
+        <div class="stat"><div class="stat-value">${messages.filter(m=>m.role==='user').length}</div><div class="stat-label">Messages</div></div>
+        <div class="stat"><div class="stat-value">${evaluations.length}</div><div class="stat-label">Évaluations</div></div>
+      </div>
+      ${avgScore != null ? `<div class="score-badge ${scoreBadgeClass(parseFloat(avgScore))}">⭐ ${avgScore}<span style="font-size:.7rem;opacity:.7">/10</span></div>` : ''}
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('tab-cv',   this)">📄 CV &amp; Analyse</button>
+      <button class="tab-btn"        onclick="switchTab('tab-evals',this)">✅ Évaluations (${evaluations.length})</button>
+      <button class="tab-btn"        onclick="switchTab('tab-gens', this)">⚡ Générations (${generations.length})</button>
+      <button class="tab-btn"        onclick="switchTab('tab-chat', this)">💬 Chat (${messages.length})</button>
+    </div>
+
+    <!-- CV & Analyse -->
+    <div class="tab-pane active" id="tab-cv">
+      <div class="card">
+        <div class="card-title">👤 Informations du CV</div>
+        <div class="cv-grid">
+          <div class="cv-field"><div class="cv-field-label">Nom</div><div class="cv-field-value">${escHtml(cvData.nom || '—')}</div></div>
+          <div class="cv-field"><div class="cv-field-label">Email</div><div class="cv-field-value">${escHtml(cvData.email || '—')}</div></div>
+          <div class="cv-field"><div class="cv-field-label">Téléphone</div><div class="cv-field-value">${escHtml(cvData.telephone || '—')}</div></div>
+        </div>
+        ${cvData.competences?.length ? `
+          <div style="margin-top:.6rem">
+            <div class="cv-field-label" style="font-size:.65rem;color:var(--vscode-text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem">Compétences</div>
+            <div class="tag-list">${cvData.competences.map(c=>`<span class="tag">${escHtml(c)}</span>`).join('')}</div>
+          </div>` : ''}
+        ${cvData.experiences?.length ? `
+          <div style="margin-top:.6rem">
+            <div class="cv-field-label" style="font-size:.65rem;color:var(--vscode-text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem">Expériences</div>
+            <ul class="bullet-list">${cvData.experiences.map(e=>`<li>${escHtml(e)}</li>`).join('')}</ul>
+          </div>` : ''}
+        ${cvData.formations?.length ? `
+          <div style="margin-top:.6rem">
+            <div class="cv-field-label" style="font-size:.65rem;color:var(--vscode-text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem">Formations</div>
+            <ul class="bullet-list">${cvData.formations.map(f=>`<li>${escHtml(f)}</li>`).join('')}</ul>
+          </div>` : ''}
+      </div>
+      <div class="analysis-grid">
+        <div class="card">
+          <div class="card-title">💡 Conseils CV</div>
+          <ul class="bullet-list">${(analysis.conseils_cv||[]).map(c=>`<li>${escHtml(c)}</li>`).join('')}</ul>
+        </div>
+        <div class="card">
+          <div class="card-title">❓ Questions de préparation</div>
+          <ul class="bullet-list">${(analysis.questions_preparation||[]).map(q=>`<li>${escHtml(q)}</li>`).join('')}</ul>
+        </div>
+        <div class="card">
+          <div class="card-title">🎯 Secteurs pertinents</div>
+          <div class="tag-list">${(analysis.sujets_entretien?.secteurs||[]).map(s=>`<span class="tag">${escHtml(s)}</span>`).join('')}</div>
+        </div>
+        <div class="card">
+          <div class="card-title">⭐ Compétences clés</div>
+          <div class="tag-list">${(analysis.sujets_entretien?.competences_clés||[]).map(c=>`<span class="tag">${escHtml(c)}</span>`).join('')}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Évaluations -->
+    <div class="tab-pane" id="tab-evals">
+      ${!evaluations.length
+        ? `<div class="empty-state" style="padding:3rem;text-align:center"><div class="empty-icon">✅</div>Aucune évaluation.<br>Cliquez sur un tag de question dans le Coach pour en créer.</div>`
+        : evaluations.map(ev => renderEvaluation(ev)).join('')}
+    </div>
+
+    <!-- Générations -->
+    <div class="tab-pane" id="tab-gens">
+      ${!generations.length
+        ? `<div class="empty-state" style="padding:3rem;text-align:center"><div class="empty-icon">⚡</div>Aucune génération de carte mentale.</div>`
+        : generations.map(g => renderGeneration(g)).join('')}
+    </div>
+
+    <!-- Chat -->
+    <div class="tab-pane" id="tab-chat">
+      ${!messages.length
+        ? `<div class="empty-state" style="padding:3rem;text-align:center"><div class="empty-icon">💬</div>Aucun message de chat.</div>`
+        : `<div class="card"><div class="msg-list">${messages.map(m => renderMessage(m)).join('')}</div></div>`}
+    </div>
+  </div>`;
+}
+
+function renderEvaluation(ev) {
+  const e = ev.evaluation || {};
+  const s = ev.score;
+  const bg = s>=7 ? 'rgba(106,153,85,0.2)' : s>=4 ? 'rgba(206,145,120,0.2)' : 'rgba(255,68,68,0.2)';
+  return `
+    <div class="card eval-card">
+      <div class="eval-header">
+        <span class="eval-score-badge" style="background:${bg};color:${scoreColor(s)}">${s||'—'}/10</span>
+        <div class="eval-question">${escHtml(ev.question)}</div>
+        <div class="eval-date">${formatDate(ev.created_at)}</div>
+      </div>
+      <div class="eval-user-response"><strong>Votre réponse :</strong> ${escHtml(ev.user_response)}</div>
+      ${e.evaluation ? `<div class="eval-overall">${escHtml(e.evaluation)}</div>` : ''}
+      <div class="eval-body">
+        ${e.points_forts?.length ? `
+          <div class="eval-section">
+            <div class="eval-section-title" style="color:var(--vscode-green)">✓ Points forts</div>
+            <ul>${e.points_forts.map(p=>`<li>${escHtml(p)}</li>`).join('')}</ul>
+          </div>` : ''}
+        ${e.ameliorations?.length ? `
+          <div class="eval-section">
+            <div class="eval-section-title" style="color:var(--vscode-orange)">→ Améliorations</div>
+            <ul>${e.ameliorations.map(a=>`<li>${escHtml(a)}</li>`).join('')}</ul>
+          </div>` : ''}
+      </div>
+      ${e.exemple_ameliore ? `
+        <div class="eval-example">
+          <strong style="color:var(--vscode-blue)">💡 Exemple amélioré :</strong><br>
+          "${escHtml(e.exemple_ameliore)}"
+        </div>` : ''}
+      ${e.questions_suivantes?.length ? `
+        <div style="margin-top:.6rem">
+          <div class="section-title">Questions de suivi suggérées</div>
+          <div class="follow-up-list">
+            ${e.questions_suivantes.map(q=>`<div class="follow-up-item">${escHtml(q)}</div>`).join('')}
+          </div>
+        </div>` : ''}
+    </div>`;
+}
+
+function renderGeneration(g) {
+  const topics = JSON.parse(g.topics || '{}');
+  const allQ = [
+    ...(topics.topics?.questions_culture_entreprise || []),
+    ...(topics.topics?.questions_job_specifiques    || []),
+    ...(topics.topics?.brain_teasers                || [])
+  ];
+  return `
+    <div class="card">
+      <div class="gen-header">
+        <span class="gen-sector">🎯 ${escHtml(g.sector || '—')}</span>
+        ${g.company ? `<span class="chip chip-blue">🏢 ${escHtml(g.company)}</span>` : ''}
+        ${g.role    ? `<span class="chip chip-yellow">💼 ${escHtml(g.role)}</span>`    : ''}
+        <span class="gen-date">${formatDate(g.created_at)}</span>
+      </div>
+      <div class="question-list">
+        ${allQ.map(q=>`<div class="question-item">${escHtml(q)}</div>`).join('')}
+      </div>
+    </div>`;
+}
+
+function renderMessage(m) {
+  return `
+    <div class="msg ${m.role}">
+      <div class="msg-avatar">${m.role==='assistant' ? '🤖' : '👤'}</div>
+      <div>
+        <div class="msg-bubble">${escHtml(m.content)}</div>
+        <div class="msg-time">${formatDate(m.created_at)}</div>
+      </div>
+    </div>`;
+}
+
+function switchTab(id, btn) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(id)?.classList.add('active');
+  btn.classList.add('active');
+}
+
+function escHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+}
+
+document.getElementById('refreshBtn').addEventListener('click', loadSessions);
+loadSessions();
+</script>
+</body>
+</html>

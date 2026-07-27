@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mockly — Accès personnalisé</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="auth-page">
+    <div class="auth-background">
+        <div class="orb orb-one"></div>
+        <div class="orb orb-two"></div>
+        <div class="orb orb-three"></div>
+    </div>
+
+    <a href="index.html" class="back-home-link">← Accueil</a>
+
+    <div class="auth-shell">
+        <section class="auth-hero">
+            <div class="hero-badge">Mockly • IA employabilité</div>
+            <h1>Bienvenue dans votre parcours de préparation.</h1>
+            <p>Créez votre compte, personnalisez votre profil et laissez Mockly vous guider vers les bons entretiens.</p>
+        </section>
+
+        <section class="auth-card">
+            <div class="auth-tabs">
+                <button id="showSignupTab" class="auth-tab active" type="button">Créer un compte</button>
+                <button id="showLoginTab" class="auth-tab" type="button">Se connecter</button>
+            </div>
+
+            <div id="authPanel" class="auth-panel-step">
+                <form id="authForm" class="auth-form">
+                    <label>
+                        Adresse email
+                        <input id="authEmail" type="email" required>
+                    </label>
+                    <label>
+                        Mot de passe
+                        <input id="authPassword" type="password" required>
+                    </label>
+                    <label id="confirmPasswordGroup">
+                        Confirmation du mot de passe
+                        <input id="authConfirmPassword" type="password">
+                    </label>
+                    <button id="authSubmitBtn" class="primary-btn full-width" type="submit">Créer mon compte</button>
+                    <p id="authMessage" class="auth-message"></p>
+                </form>
+            </div>
+
+            <div id="onboardingPanel" class="auth-panel-step hidden">
+                <div class="chat-card">
+                    <div class="chat-phone-header">
+                        <div class="phone-dot"></div>
+                        <div class="chat-title">Conversation Mockly</div>
+                        <div class="phone-dot"></div>
+                    </div>
+
+                    <div class="chat-thread" id="chatThread">
+                        <div class="message assistant">
+                            <div class="avatar assistant-avatar">🐼</div>
+                            <div class="bubble assistant-bubble">
+                                <strong>Mockly</strong>
+                                <p>Je vais te guider pour personnaliser ton parcours. Commençons par ton profil.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button id="scrollToBottomBtn" class="chat-scroll-button hidden" type="button" aria-label="Aller au bas de la discussion">↓</button>
+
+                    <div class="composer">
+                        <div id="onboardingLabel" class="sr-only onboarding-label"></div>
+                        <div class="composer-row">
+                            <input id="onboardingInput" type="text" class="onboarding-input" placeholder="Réponds ici...">
+                            <button id="onboardingNext" class="onboarding-send" type="button">Envoyer</button>
+                        </div>
+                        <p id="onboardingStatus" class="auth-message"></p>
+                        <button id="goWorkspaceBtn" class="secondary-btn full-width hidden" type="button">Accéder au workspace</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="auth.js"></script>
+</body>
+</html>
