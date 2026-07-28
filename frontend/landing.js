@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:5001/api';
+const API_BASE_URL = 'http://mockly-avje.onrender.com//api';
 
 let authMode = 'signup';
 let onboardingStep = 0;
