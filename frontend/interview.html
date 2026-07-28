@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mockly — Entretien audio</title>
+  <meta name="description" content="Réalisez un entretien audio simulé avec l'IA à partir d'une fiche de poste.">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    html, body { overflow: auto; height: auto; }
+
+    .interview-layout {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 2rem 1.2rem 3rem;
+    }
+
+    .interview-header { margin-bottom: 1.5rem; }
+    .interview-header h1 { font-size: 1.3rem; color: var(--vscode-text-bright); margin-bottom: 0.4rem; }
+    .interview-header p { color: var(--vscode-text-muted); font-size: 0.9rem; line-height: 1.6; }
+
+    .job-form label { display: block; font-size: 0.85rem; color: var(--vscode-text-muted); margin-bottom: 0.5rem; }
+    .job-form textarea {
+      width: 100%;
+      min-height: 160px;
+      background: var(--vscode-line);
+      border: 1px solid var(--vscode-border);
+      border-radius: 8px;
+      padding: 0.8rem;
+      color: var(--vscode-text);
+      font: inherit;
+      font-size: 0.9rem;
+      resize: vertical;
+    }
+    .job-form textarea:focus { outline: none; border-color: var(--vscode-blue); }
+
+    .interview-error { color: #ff6b6b; font-size: 0.85rem; margin-top: 0.6rem; min-height: 1.2rem; }
+
+    .interview-progress {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+      font-size: 0.8rem;
+      color: var(--vscode-text-muted);
+      gap: 0.8rem;
+    }
+    .progress-bar-track {
+      flex: 1;
+      height: 6px;
+      background: var(--vscode-line);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--vscode-blue);
+      transition: width 0.3s ease;
+    }
+
+    .interview-thread {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+    .interview-message { display: flex; gap: 0.6rem; align-items: flex-start; }
+    .interview-message.user { flex-direction: row-reverse; }
+    .interview-avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem; flex-shrink: 0;
+      background: rgba(86, 156, 214, 0.16); border: 1px solid rgba(86, 156, 214, 0.25);
+    }
+    .interview-bubble {
+      max-width: 78%;
+      padding: 0.75rem 1rem;
+      border-radius: 14px;
+      font-size: 0.9rem;
+      line-height: 1.55;
+    }
+    .interview-message.assistant .interview-bubble {
+      background: var(--vscode-sidebar);
+      border: 1px solid var(--vscode-border);
+      border-left: 3px solid var(--vscode-blue);
+    }
+    .interview-message.user .interview-bubble {
+      background: var(--vscode-selection);
+      color: var(--vscode-text-bright);
+    }
+    .replay-btn {
+      background: none; border: none; color: var(--vscode-blue); cursor: pointer;
+      font-size: 0.8rem; margin-top: 0.4rem; padding: 0; display: block;
+    }
+    .replay-btn:hover { text-decoration: underline; }
+
+    .recorder-panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 1.5rem;
+      background: var(--vscode-sidebar);
+      border: 1px solid var(--vscode-border);
+      border-radius: 14px;
+    }
+    .mic-btn {
+      width: 72px; height: 72px;
+      border-radius: 50%;
+      border: none;
+      background: var(--vscode-blue);
+      color: white;
+      font-size: 1.8rem;
+      cursor: pointer;
+      transition: transform 0.15s ease, background 0.2s ease;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .mic-btn:hover { transform: translateY(-2px); }
+    .mic-btn.recording {
+      background: #e5484d;
+      animation: mic-pulse 1.4s ease-in-out infinite;
+    }
+    .mic-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    @keyframes mic-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(229, 72, 77, 0.45); }
+      50% { box-shadow: 0 0 0 14px rgba(229, 72, 77, 0); }
+    }
+    .recorder-hint { font-size: 0.8rem; color: var(--vscode-text-muted); text-align: center; }
+
+    .report-score {
+      display: flex; align-items: center; gap: 1rem; margin-bottom: 1.25rem; flex-wrap: wrap;
+    }
+    .report-score-badge {
+      font-size: 1.8rem; font-weight: 700; color: var(--vscode-blue);
+      background: rgba(86, 156, 214, 0.12); border: 1px solid rgba(86, 156, 214, 0.3);
+      border-radius: 12px; padding: 0.6rem 1.1rem; flex-shrink: 0;
+    }
+    .report-resume { color: var(--vscode-text); line-height: 1.6; font-size: 0.92rem; }
+    .report-section { margin-bottom: 1.25rem; }
+    .report-section h3 { font-size: 0.95rem; color: var(--vscode-text-bright); margin-bottom: 0.6rem; }
+    .report-list { list-style: none; display: flex; flex-direction: column; gap: 0.4rem; }
+    .report-list li { font-size: 0.85rem; color: var(--vscode-text); line-height: 1.5; display: flex; gap: 0.4rem; }
+    .report-list li::before { content: '→'; color: var(--vscode-blue); flex-shrink: 0; }
+    .competency-card {
+      background: var(--vscode-line); border: 1px solid var(--vscode-border);
+      border-radius: 10px; padding: 0.85rem; margin-bottom: 0.6rem;
+    }
+    .competency-card-header { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; margin-bottom: 0.4rem; }
+    .competency-name { font-weight: 600; font-size: 0.88rem; color: var(--vscode-text-bright); }
+    .competency-score { font-weight: 700; color: var(--vscode-blue); flex-shrink: 0; }
+    .competency-comment { font-size: 0.82rem; color: var(--vscode-text); line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <nav class="app-nav">
+    <a href="workspace.html">📄 Coach</a>
+    <a href="/interview" class="active">🎙️ Interview</a>
+    <a href="/results">📊 Historique</a>
+    <a href="/configuration">⚙️ Configuration</a>
+    <div class="nav-right">
+      <a href="auth.html" onclick="localStorage.removeItem('mocklyUser')">↪ Déconnexion</a>
+    </div>
+  </nav>
+
+  <div class="interview-layout">
+    <div class="interview-header">
+      <h1>🎙️ Entretien audio</h1>
+      <p>Colle une fiche de poste : Mockly génère des questions ciblées sur les compétences clés du poste et mène l'entretien à l'oral. Le retour détaillé, avec un score, arrive à la fin, à l'écrit.</p>
+    </div>
+
+    <form id="jobForm" class="section-card job-form">
+      <label for="jobDescriptionInput">Fiche de poste</label>
+      <textarea id="jobDescriptionInput" placeholder="Colle ici l'intitulé et la description du poste..."></textarea>
+      <button id="startInterviewBtn" type="submit" class="primary-btn full-width" style="margin-top:0.8rem">🎙️ Démarrer l'entretien</button>
+      <p id="jobFormError" class="interview-error"></p>
+    </form>
+
+    <div id="interviewScreen" class="hidden">
+      <div class="interview-progress">
+        <span id="progressLabel">Question 1</span>
+        <div class="progress-bar-track"><div id="progressBarFill" class="progress-bar-fill" style="width:0%"></div></div>
+        <span id="competencyLabel"></span>
+      </div>
+
+      <div id="interviewThread" class="interview-thread"></div>
+
+      <div class="recorder-panel">
+        <button id="micBtn" class="mic-btn" type="button" title="Enregistrer ma réponse">🎤</button>
+        <div id="recorderHint" class="recorder-hint">Clique pour répondre à l'oral</div>
+      </div>
+    </div>
+
+    <div id="reportScreen" class="hidden">
+      <div class="section-card">
+        <div class="report-score">
+          <div class="report-score-badge"><span id="reportScoreGlobal">–</span>/10</div>
+          <p class="report-resume" id="reportResume"></p>
+        </div>
+
+        <div class="report-section">
+          <h3>✅ Points forts</h3>
+          <ul class="report-list" id="reportPointsForts"></ul>
+        </div>
+        <div class="report-section">
+          <h3>→ Axes d'amélioration</h3>
+          <ul class="report-list" id="reportAmeliorations"></ul>
+        </div>
+        <div class="report-section">
+          <h3>💡 Conseil</h3>
+          <p class="report-resume" id="reportConseil"></p>
+        </div>
+        <div class="report-section">
+          <h3>📊 Détail par compétence</h3>
+          <div id="reportCompetencies"></div>
+        </div>
+
+        <button id="restartInterviewBtn" class="secondary-btn full-width" type="button">🔁 Nouvel entretien</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="interview.js"></script>
+</body>
+</html>

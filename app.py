@@ -13,12 +13,14 @@ Routes:
   GET  /api/sessions/<id>          → Get session detail
   GET  /api/informations-pro/<user_id> → Get a user's professional info
   POST /api/informations-pro       → Create/update a user's professional info
+  POST /api/interview/start        → Start an audio interview from a job posting
+  POST /api/interview/respond      → Submit a recorded audio answer, get the next question
+  POST /api/interview/finish       → Get the final written evaluation for an interview
 """
 
-import os
 import uuid
 import json
-import traceback
+import base64
 import hashlib
 from datetime import datetime
 from pathlib import Path
@@ -28,8 +30,12 @@ from flask_cors import CORS
 
 import sqlite3
 import re
-from google import genai
-from google.genai import types as genai_types
+
+from api import ai_gateway
+from api.speech import stt as speech_stt
+from api.speech import tts as speech_tts
+from api import profileprocessing
+from api import interviewengine
 
 # ── PDF / DOCX parsing ──────────────────────────────────────────────────────
 try:
@@ -53,19 +59,8 @@ UPLOADS_DIR = DATA_DIR / "uploads"
 DATA_DIR.mkdir(exist_ok=True)
 UPLOADS_DIR.mkdir(exist_ok=True)
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-
 app = Flask(__name__, static_folder=str(BASE_DIR / "frontend"), static_url_path="")
 CORS(app, origins=["*"])
-
-# ── Gemini setup ─────────────────────────────────────────────────────────────
-if GEMINI_API_KEY:
-    _genai_client = genai.Client(api_key=GEMINI_API_KEY)
-else:
-    _genai_client = None
-    print("⚠️  GEMINI_API_KEY not set – AI features will return mock data.")
-
-GEMINI_MODEL = "gemini-1.5-flash"
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -148,6 +143,32 @@ def init_db():
             score           INTEGER,
             evaluation_json TEXT    -- full JSON blob from AI
         );
+
+        -- Entretiens audio : un entretien par fiche de poste soumise
+        CREATE TABLE IF NOT EXISTS job_interviews (
+            id               TEXT PRIMARY KEY,
+            created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+            completed_at     TEXT,
+            user_id          TEXT REFERENCES users(id),
+            session_id       TEXT REFERENCES sessions(id),
+            job_title        TEXT,
+            job_description  TEXT NOT NULL,
+            competencies     TEXT NOT NULL,  -- JSON: liste des compétences à évaluer
+            status           TEXT NOT NULL DEFAULT 'in_progress',  -- in_progress | completed
+            final_evaluation TEXT             -- JSON blob de l'évaluation finale
+        );
+
+        -- Tours de question/réponse d'un entretien audio
+        CREATE TABLE IF NOT EXISTS job_interview_turns (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            interview_id  TEXT NOT NULL REFERENCES job_interviews(id),
+            turn_index    INTEGER NOT NULL,
+            competency    TEXT NOT NULL,
+            question      TEXT NOT NULL,
+            user_response TEXT,
+            asked_at      TEXT,   -- renseigné une fois la question réellement présentée au candidat
+            created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+        );
         """)
 
     with get_db() as conn:
@@ -195,51 +216,7 @@ def get_informations_pro_for_session(session_id: str | None):
     return get_informations_pro(row["user_id"])
 
 
-def ai_call(prompt: str, fallback: dict) -> dict:
-    """Call Gemini and parse JSON response. Returns fallback on error."""
-    if not _genai_client:
-        print("[AI] No client – returning fallback")
-        return fallback
-    try:
-        print(f"[AI] Calling {GEMINI_MODEL} ...")
-        response = _genai_client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=prompt,
-            config=genai_types.GenerateContentConfig(
-                response_mime_type="application/json",
-                temperature=0.9,
-            )
-        )
-        text = response.text.strip()
-        print(f"[AI] Raw response ({len(text)} chars): {text[:200]}...")
-
-        # Try direct parse first
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            pass
-
-        # Strip markdown code fences
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1]
-            text = text.rsplit("```", 1)[0]
-            try:
-                return json.loads(text)
-            except json.JSONDecodeError:
-                pass
-
-        # Last resort: find first JSON object via regex
-        match = re.search(r'\{.*\}', text, re.DOTALL)
-        if match:
-            return json.loads(match.group())
-
-        print(f"[AI] Could not parse JSON from response – using fallback")
-        return fallback
-
-    except Exception as e:
-        print(f"[AI] Exception: {e}")
-        traceback.print_exc()
-        return fallback
+ai_call = ai_gateway.ai_call
 
 
 def extract_cv_text(filepath: str) -> str:
@@ -680,10 +657,10 @@ Nouvelle question/message du candidat: {message}
 Réponds en français, de façon concise (3-5 phrases max), comme un vrai coach bienveillant.
 Ne renvoie que le texte de ta réponse, sans JSON.
 """
-    if _genai_client:
+    if ai_gateway.get_client():
         try:
-            resp = _genai_client.models.generate_content(
-                model=GEMINI_MODEL,
+            resp = ai_gateway.get_client().models.generate_content(
+                model=ai_gateway.GEMINI_MODEL,
                 contents=prompt
             )
             reply = resp.text.strip()
@@ -743,6 +720,202 @@ def evaluate_response():
         )
 
     return jsonify(evaluation)
+
+
+# ─── Audio interview endpoints ─────────────────────────────────────────────
+
+def _row_to_turn_dict(row) -> dict:
+    return {
+        "turn_index": row["turn_index"],
+        "competency": row["competency"],
+        "question": row["question"],
+        "user_response": row["user_response"],
+        "asked_at": row["asked_at"],
+    }
+
+
+def _generate_and_store_lookahead(conn, interview_id, job_title, job_description,
+                                   all_competencies, existing_turns, cv_data):
+    """Génère et stocke (sans la présenter) la question suivante, si une compétence reste à couvrir."""
+    covered = [t["competency"] for t in existing_turns]
+    next_competency = interviewengine.pick_next_competency(all_competencies, covered)
+    if not next_competency:
+        return None
+
+    previous_questions = [t["question"] for t in existing_turns]
+    question = interviewengine.generate_question(
+        job_title, job_description, next_competency, previous_questions, cv_data
+    )
+    next_index = len(existing_turns)
+    conn.execute(
+        """INSERT INTO job_interview_turns (interview_id, turn_index, competency, question)
+           VALUES (?,?,?,?)""",
+        (interview_id, next_index, next_competency, question)
+    )
+    return {"turn_index": next_index, "competency": next_competency, "question": question}
+
+
+@app.route("/api/interview/start", methods=["POST"])
+def interview_start():
+    data = request.get_json(force=True)
+    user_id         = data.get("user_id")
+    session_id      = data.get("session_id")
+    job_description = (data.get("job_description") or "").strip()
+
+    if not job_description:
+        return jsonify({"error": "job_description requis"}), 400
+
+    cv_data = None
+    if session_id:
+        with get_db() as conn:
+            row = conn.execute("SELECT cv_data FROM sessions WHERE id=?", (session_id,)).fetchone()
+        if row and row["cv_data"]:
+            cv_data = json.loads(row["cv_data"])
+
+    analysis = profileprocessing.analyze_job_posting(job_description, cv_data)
+    job_title = analysis["job_title"]
+    competencies = analysis["competencies"]
+
+    interview_id = str(uuid.uuid4())
+
+    with get_db() as conn:
+        conn.execute(
+            """INSERT INTO job_interviews (id, user_id, session_id, job_title, job_description, competencies)
+               VALUES (?,?,?,?,?,?)""",
+            (interview_id, user_id, session_id, job_title, job_description, json.dumps(competencies, ensure_ascii=False))
+        )
+
+        first_competency = competencies[0]
+        first_question = interviewengine.generate_question(job_title, job_description, first_competency, [], cv_data)
+        conn.execute(
+            """INSERT INTO job_interview_turns (interview_id, turn_index, competency, question, asked_at)
+               VALUES (?,?,?,?, datetime('now'))""",
+            (interview_id, 0, first_competency, first_question)
+        )
+
+        # Précharge la question suivante pendant que le candidat répond à la première.
+        _generate_and_store_lookahead(
+            conn, interview_id, job_title, job_description, competencies,
+            [{"competency": first_competency, "question": first_question}], cv_data
+        )
+
+    audio = speech_tts.synthesize(first_question)
+
+    return jsonify({
+        "interview_id": interview_id,
+        "job_title": job_title,
+        "total_competencies": len(competencies),
+        "turn_index": 0,
+        "competency": first_competency,
+        "question": first_question,
+        "audio_base64": base64.b64encode(audio).decode("ascii"),
+        "finished": False,
+    })
+
+
+@app.route("/api/interview/respond", methods=["POST"])
+def interview_respond():
+    interview_id = request.form.get("interview_id")
+    turn_index   = request.form.get("turn_index", type=int)
+    audio_file   = request.files.get("audio")
+
+    if not interview_id or turn_index is None or not audio_file:
+        return jsonify({"error": "interview_id, turn_index et audio requis"}), 400
+
+    with get_db() as conn:
+        interview = conn.execute("SELECT * FROM job_interviews WHERE id=?", (interview_id,)).fetchone()
+        if not interview:
+            return jsonify({"error": "Entretien introuvable"}), 404
+
+        current_turn = conn.execute(
+            "SELECT * FROM job_interview_turns WHERE interview_id=? AND turn_index=?",
+            (interview_id, turn_index)
+        ).fetchone()
+        if not current_turn:
+            return jsonify({"error": "Tour d'entretien introuvable"}), 404
+
+        mime_type = (audio_file.mimetype or "audio/webm").split(";")[0]
+        transcript = speech_stt.transcribe(audio_file.read(), mime_type)
+
+        conn.execute(
+            "UPDATE job_interview_turns SET user_response=? WHERE interview_id=? AND turn_index=?",
+            (transcript, interview_id, turn_index)
+        )
+
+        all_turns = [
+            _row_to_turn_dict(r) for r in conn.execute(
+                "SELECT * FROM job_interview_turns WHERE interview_id=? ORDER BY turn_index",
+                (interview_id,)
+            ).fetchall()
+        ]
+
+        next_turn = next((t for t in all_turns if t["turn_index"] == turn_index + 1), None)
+        if not next_turn:
+            return jsonify({
+                "competency": current_turn["competency"],
+                "transcript": transcript,
+                "finished": True,
+            })
+
+        conn.execute(
+            "UPDATE job_interview_turns SET asked_at=datetime('now') WHERE interview_id=? AND turn_index=?",
+            (interview_id, next_turn["turn_index"])
+        )
+
+        cv_data = None
+        if interview["session_id"]:
+            session_row = conn.execute("SELECT cv_data FROM sessions WHERE id=?", (interview["session_id"],)).fetchone()
+            if session_row and session_row["cv_data"]:
+                cv_data = json.loads(session_row["cv_data"])
+
+        competencies = json.loads(interview["competencies"])
+        _generate_and_store_lookahead(
+            conn, interview_id, interview["job_title"], interview["job_description"],
+            competencies, all_turns[:next_turn["turn_index"] + 1], cv_data
+        )
+
+    audio = speech_tts.synthesize(next_turn["question"])
+
+    return jsonify({
+        "competency": current_turn["competency"],
+        "transcript": transcript,
+        "finished": False,
+        "turn_index": next_turn["turn_index"],
+        "next_competency": next_turn["competency"],
+        "question": next_turn["question"],
+        "audio_base64": base64.b64encode(audio).decode("ascii"),
+    })
+
+
+@app.route("/api/interview/finish", methods=["POST"])
+def interview_finish():
+    data = request.get_json(force=True)
+    interview_id = data.get("interview_id")
+    if not interview_id:
+        return jsonify({"error": "interview_id requis"}), 400
+
+    with get_db() as conn:
+        interview = conn.execute("SELECT * FROM job_interviews WHERE id=?", (interview_id,)).fetchone()
+        if not interview:
+            return jsonify({"error": "Entretien introuvable"}), 404
+
+        turns = [
+            _row_to_turn_dict(r) for r in conn.execute(
+                "SELECT * FROM job_interview_turns WHERE interview_id=? AND asked_at IS NOT NULL ORDER BY turn_index",
+                (interview_id,)
+            ).fetchall()
+        ]
+
+        evaluation = interviewengine.generate_final_evaluation(
+            interview["job_title"], interview["job_description"], turns
+        )
+
+        conn.execute(
+            "UPDATE job_interviews SET status='completed', completed_at=datetime('now'), final_evaluation=? WHERE id=?",
+            (json.dumps(evaluation, ensure_ascii=False), interview_id)
+        )
+
+    return jsonify({"evaluation": evaluation, "turns": turns, "job_title": interview["job_title"]})
 
 
 # ─── History / results viewer endpoints ────────────────────────────────────
@@ -836,6 +1009,11 @@ def results_page():
     return send_from_directory(str(BASE_DIR / "frontend"), "results.html")
 
 
+@app.route("/interview")
+def interview_page():
+    return send_from_directory(str(BASE_DIR / "frontend"), "interview.html")
+
+
 @app.route("/configuration")
 def configuration_page():
     return send_from_directory(str(BASE_DIR / "frontend"), "configuration.html")
@@ -857,7 +1035,7 @@ def static_files(path):
 
 if __name__ == "__main__":
     init_db()
-    key_status = "✅ configurée" if GEMINI_API_KEY else "❌ non configurée (mode mock)"
+    key_status = "✅ configurée" if ai_gateway.GEMINI_API_KEY else "❌ non configurée (mode mock)"
     print(f"""
 ╔═══════════════════════════════════════════╗
 ║       Interview Coach — Backend           ║
