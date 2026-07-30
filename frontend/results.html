@@ -375,6 +375,7 @@
   <a href="/configuration">⚙️ Configuration</a>
   <div class="nav-right">
     <span class="nav-badge" id="totalBadge">...</span>
+    <a href="/admin" class="admin-nav-link hidden">🛡️ Admin</a>
     <a href="auth.html" onclick="localStorage.removeItem('mocklyUser')">↪ Déconnexion</a>
   </div>
 </nav>
@@ -681,5 +682,6 @@ function escHtml(str) {
 document.getElementById('refreshBtn').addEventListener('click', loadSessions);
 loadSessions();
 </script>
+<script src="nav-admin.js"></script>
 </body>
 </html>

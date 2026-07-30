@@ -58,7 +58,7 @@ Réponds uniquement avec le JSON, sans texte autour.
     }
 
     try:
-        result = ai_gateway.ai_call(prompt, fallback)
+        result = ai_gateway.ai_call(prompt, fallback, context="job_posting_analysis")
     except Exception:
         result = fallback
 

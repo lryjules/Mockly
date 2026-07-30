@@ -104,7 +104,7 @@ Retourne exactement ce format JSON:
             }
         }
     }
-    result = ai_call(prompt, fallback)
+    result = ai_call(prompt, fallback, context="cv_parse")
     cv_data = result.get("cv_data", fallback["cv_data"])
     analysis = result.get("analysis", fallback["analysis"])
     return cv_data, analysis

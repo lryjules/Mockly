@@ -34,7 +34,7 @@ def signup():
         )
         conn.execute("INSERT INTO informations_pro (user_id) VALUES (?)", (user_id,))
 
-    return jsonify({"message": "Compte créé", "user": {"id": user_id, "email": email}})
+    return jsonify({"message": "Compte créé", "user": {"id": user_id, "email": email, "is_admin": False}})
 
 
 @auth_bp.route("/api/login", methods=["POST"])
@@ -48,7 +48,7 @@ def login():
 
     with get_db() as conn:
         user = conn.execute(
-            "SELECT id, email, password_hash FROM users WHERE email=?",
+            "SELECT id, email, password_hash, is_admin FROM users WHERE email=?",
             (email,)
         ).fetchone()
 
@@ -58,6 +58,6 @@ def login():
     profile = get_informations_pro(user["id"])
     return jsonify({
         "message": "Connexion réussie",
-        "user": {"id": user["id"], "email": user["email"]},
+        "user": {"id": user["id"], "email": user["email"], "is_admin": bool(user["is_admin"])},
         "profile": profile or {}
     })

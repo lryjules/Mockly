@@ -6,6 +6,7 @@ from flask import Blueprint, request, jsonify
 
 from api.db import get_db
 from api import ai_gateway
+from api import ai_logging
 from api import profile_engine
 
 chat_bp = Blueprint("chat", __name__)
@@ -15,7 +16,8 @@ ai_call = ai_gateway.ai_call
 VALID_CATEGORIES = {"technique", "métier", "soft_skill"}
 
 
-def evaluate_response_with_ai(cv_data: dict, question: str, user_response: str) -> dict:
+def evaluate_response_with_ai(cv_data: dict, question: str, user_response: str,
+                               session_id: str | None = None) -> dict:
     prompt = f"""
 Tu es un coach RH expert. Évalue cette réponse d'entretien.
 
@@ -48,7 +50,7 @@ Réponds UNIQUEMENT en JSON valide sans markdown:
             "Comment avez-vous géré les obstacles rencontrés ?"
         ]
     }
-    return ai_call(prompt, fallback)
+    return ai_call(prompt, fallback, context="evaluate_response", session_id=session_id)
 
 
 @chat_bp.route("/api/start-chat", methods=["POST"])
@@ -124,10 +126,12 @@ Ne renvoie que le texte de ta réponse, sans JSON.
 """
     if ai_gateway.get_client():
         try:
-            resp = ai_gateway.get_client().models.generate_content(
-                model=ai_gateway.GEMINI_MODEL,
-                contents=prompt
-            )
+            with ai_logging.timed_call("chat", ai_gateway.GEMINI_MODEL, session_id=session_id) as record:
+                resp = ai_gateway.get_client().models.generate_content(
+                    model=ai_gateway.GEMINI_MODEL,
+                    contents=prompt
+                )
+                record(resp.usage_metadata)
             reply = resp.text.strip()
         except Exception as e:
             print(f"Chat AI error: {e}")
@@ -168,7 +172,7 @@ def evaluate_response():
         return jsonify({"error": "Session introuvable"}), 404
 
     cv_data = json.loads(row["cv_data"])
-    evaluation = evaluate_response_with_ai(cv_data, question, user_response)
+    evaluation = evaluate_response_with_ai(cv_data, question, user_response, session_id=session_id)
 
     with get_db() as conn:
         conn.execute(

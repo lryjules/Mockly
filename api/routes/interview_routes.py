@@ -1,4 +1,16 @@
-"""Routes de l'entretien audio : /api/interview/start, /respond, /finish."""
+"""Routes de l'entretien audio : /api/interview/start, /respond, /finish.
+
+Règle importante pour éviter un "database is locked" silencieux : chaque
+appel IA (ai_gateway.ai_call / speech.stt.transcribe) journalise son coût/
+latence via api.ai_logging, qui ouvre SA PROPRE connexion SQLite. Si cet
+appel a lieu pendant qu'une connexion `with get_db() as conn:` de cette
+route est déjà ouverte ET a déjà écrit (INSERT/UPDATE non commité), la
+connexion de journalisation se bloque et ai_logging avale l'erreur en
+silence (elle ne doit jamais faire échouer l'appel IA lui-même) — résultat :
+aucune ligne dans ai_call_log, sans aucune erreur visible.
+D'où la structure de chaque route ci-dessous : 1) lire, 2) appeler l'IA
+(aucune connexion ouverte), 3) écrire (une seule connexion, courte).
+"""
 
 import uuid
 import json
@@ -26,9 +38,9 @@ def _row_to_turn_dict(row) -> dict:
     }
 
 
-def _generate_and_store_lookahead(conn, interview_id, job_title, job_description,
-                                   competency_names, existing_turns, cv_data):
-    """Génère et stocke (sans la présenter) la question suivante, si une compétence reste à couvrir."""
+def _generate_lookahead(interview_id, job_title, job_description,
+                         competency_names, existing_turns, cv_data):
+    """Génère (sans rien écrire) la question suivante, si une compétence reste à couvrir."""
     covered = [t["competency"] for t in existing_turns]
     next_competency = interviewengine.pick_next_competency(competency_names, covered)
     if not next_competency:
@@ -36,15 +48,10 @@ def _generate_and_store_lookahead(conn, interview_id, job_title, job_description
 
     previous_questions = [t["question"] for t in existing_turns]
     question = interviewengine.generate_question(
-        job_title, job_description, next_competency, previous_questions, cv_data
+        job_title, job_description, next_competency, previous_questions, cv_data,
+        interview_id=interview_id
     )
-    next_index = len(existing_turns)
-    conn.execute(
-        """INSERT INTO job_interview_turns (interview_id, turn_index, competency, question)
-           VALUES (?,?,?,?)""",
-        (interview_id, next_index, next_competency, question)
-    )
-    return {"turn_index": next_index, "competency": next_competency, "question": question}
+    return {"turn_index": len(existing_turns), "competency": next_competency, "question": question}
 
 
 @interview_bp.route("/api/interview/start", methods=["POST"])
@@ -64,6 +71,7 @@ def interview_start():
         if row and row["cv_data"]:
             cv_data = json.loads(row["cv_data"])
 
+    # --- Appels IA (aucune connexion ouverte pendant ce temps) ---
     analysis = profileprocessing.analyze_job_posting(job_description, cv_data)
     job_title = analysis["job_title"]
     competencies = analysis["competencies"]  # [{"name", "category", "weight"}, ...]
@@ -71,6 +79,16 @@ def interview_start():
 
     interview_id = str(uuid.uuid4())
 
+    first_competency = competency_names[0]
+    first_question = interviewengine.generate_question(
+        job_title, job_description, first_competency, [], cv_data, interview_id=interview_id
+    )
+    first_turn = {"turn_index": 0, "competency": first_competency, "question": first_question}
+    lookahead = _generate_lookahead(
+        interview_id, job_title, job_description, competency_names, [first_turn], cv_data
+    )
+
+    # --- Écriture : une seule connexion courte, après tous les appels IA ---
     with get_db() as conn:
         conn.execute(
             """INSERT INTO job_interviews (id, user_id, session_id, job_title, job_description, competencies)
@@ -78,19 +96,17 @@ def interview_start():
             (interview_id, user_id, session_id, job_title, job_description,
              json.dumps(competencies, ensure_ascii=False))
         )
-
-        first_competency = competency_names[0]
-        first_question = interviewengine.generate_question(job_title, job_description, first_competency, [], cv_data)
         conn.execute(
             """INSERT INTO job_interview_turns (interview_id, turn_index, competency, question, asked_at)
                VALUES (?,?,?,?, datetime('now'))""",
             (interview_id, 0, first_competency, first_question)
         )
-
-        _generate_and_store_lookahead(
-            conn, interview_id, job_title, job_description, competency_names,
-            [{"competency": first_competency, "question": first_question}], cv_data
-        )
+        if lookahead:
+            conn.execute(
+                """INSERT INTO job_interview_turns (interview_id, turn_index, competency, question)
+                   VALUES (?,?,?,?)""",
+                (interview_id, lookahead["turn_index"], lookahead["competency"], lookahead["question"])
+            )
 
     audio = speech_tts.synthesize(first_question)
 
@@ -115,6 +131,7 @@ def interview_respond():
     if not interview_id or turn_index is None or not audio_file:
         return jsonify({"error": "interview_id, turn_index et audio requis"}), 400
 
+    # --- Lecture seule : tout le contexte nécessaire ---
     with get_db() as conn:
         interview = conn.execute("SELECT * FROM job_interviews WHERE id=?", (interview_id,)).fetchone()
         if not interview:
@@ -127,14 +144,6 @@ def interview_respond():
         if not current_turn:
             return jsonify({"error": "Tour d'entretien introuvable"}), 404
 
-        mime_type = (audio_file.mimetype or "audio/webm").split(";")[0]
-        transcript = speech_stt.transcribe(audio_file.read(), mime_type)
-
-        conn.execute(
-            "UPDATE job_interview_turns SET user_response=? WHERE interview_id=? AND turn_index=?",
-            (transcript, interview_id, turn_index)
-        )
-
         all_turns = [
             _row_to_turn_dict(r) for r in conn.execute(
                 "SELECT * FROM job_interview_turns WHERE interview_id=? ORDER BY turn_index",
@@ -142,31 +151,52 @@ def interview_respond():
             ).fetchall()
         ]
 
-        next_turn = next((t for t in all_turns if t["turn_index"] == turn_index + 1), None)
-        if not next_turn:
-            return jsonify({
-                "competency": current_turn["competency"],
-                "transcript": transcript,
-                "finished": True,
-            })
-
-        conn.execute(
-            "UPDATE job_interview_turns SET asked_at=datetime('now') WHERE interview_id=? AND turn_index=?",
-            (interview_id, next_turn["turn_index"])
-        )
-
         cv_data = None
         if interview["session_id"]:
             session_row = conn.execute("SELECT cv_data FROM sessions WHERE id=?", (interview["session_id"],)).fetchone()
             if session_row and session_row["cv_data"]:
                 cv_data = json.loads(session_row["cv_data"])
 
+    # --- Appels IA (aucune connexion ouverte pendant ce temps) ---
+    mime_type = (audio_file.mimetype or "audio/webm").split(";")[0]
+    transcript = speech_stt.transcribe(audio_file.read(), mime_type, interview_id=interview_id)
+
+    next_turn = next((t for t in all_turns if t["turn_index"] == turn_index + 1), None)
+
+    new_lookahead = None
+    if next_turn:
         competencies = json.loads(interview["competencies"])
         competency_names = [c["name"] for c in competencies]
-        _generate_and_store_lookahead(
-            conn, interview_id, interview["job_title"], interview["job_description"],
-            competency_names, all_turns[:next_turn["turn_index"] + 1], cv_data
+        turns_up_to_next = all_turns[:next_turn["turn_index"] + 1]
+        new_lookahead = _generate_lookahead(
+            interview_id, interview["job_title"], interview["job_description"],
+            competency_names, turns_up_to_next, cv_data
         )
+
+    # --- Écriture : une seule connexion courte, après tous les appels IA ---
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE job_interview_turns SET user_response=? WHERE interview_id=? AND turn_index=?",
+            (transcript, interview_id, turn_index)
+        )
+        if next_turn:
+            conn.execute(
+                "UPDATE job_interview_turns SET asked_at=datetime('now') WHERE interview_id=? AND turn_index=?",
+                (interview_id, next_turn["turn_index"])
+            )
+            if new_lookahead:
+                conn.execute(
+                    """INSERT INTO job_interview_turns (interview_id, turn_index, competency, question)
+                       VALUES (?,?,?,?)""",
+                    (interview_id, new_lookahead["turn_index"], new_lookahead["competency"], new_lookahead["question"])
+                )
+
+    if not next_turn:
+        return jsonify({
+            "competency": current_turn["competency"],
+            "transcript": transcript,
+            "finished": True,
+        })
 
     audio = speech_tts.synthesize(next_turn["question"])
 
@@ -188,6 +218,7 @@ def interview_finish():
     if not interview_id:
         return jsonify({"error": "interview_id requis"}), 400
 
+    # --- Lecture seule ---
     with get_db() as conn:
         interview = conn.execute("SELECT * FROM job_interviews WHERE id=?", (interview_id,)).fetchone()
         if not interview:
@@ -200,17 +231,21 @@ def interview_finish():
             ).fetchall()
         ]
 
-        evaluation = interviewengine.generate_final_evaluation(
-            interview["job_title"], interview["job_description"], turns
-        )
+    # --- Appel IA (aucune connexion ouverte pendant ce temps) ---
+    evaluation = interviewengine.generate_final_evaluation(
+        interview["job_title"], interview["job_description"], turns,
+        interview_id=interview_id
+    )
 
+    # --- Écriture ---
+    with get_db() as conn:
         conn.execute(
             "UPDATE job_interviews SET status='completed', completed_at=datetime('now'), final_evaluation=? WHERE id=?",
             (json.dumps(evaluation, ensure_ascii=False), interview_id)
         )
 
-    # Hors du `with` : profile_engine ouvre sa propre connexion, il faut que la
-    # transaction ci-dessus soit déjà validée pour éviter un "database is locked".
+    # profile_engine ouvre sa propre connexion : appelé après que la
+    # transaction ci-dessus soit déjà validée (with refermé).
     if interview["user_id"]:
         competencies = json.loads(interview["competencies"])
         competency_metadata = {

@@ -13,7 +13,8 @@ topics_bp = Blueprint("topics", __name__)
 ai_call = ai_gateway.ai_call
 
 
-def generate_topics_with_ai(cv_data: dict, sector: str, company: str, role: str) -> dict:
+def generate_topics_with_ai(cv_data: dict, sector: str, company: str, role: str,
+                             session_id: str | None = None) -> dict:
     prompt = f"""
 Tu es un expert RH spécialisé en entretiens. Génère des questions d'entretien ciblées.
 
@@ -62,7 +63,7 @@ Réponds UNIQUEMENT en JSON valide sans markdown:
             ]
         }
     }
-    return ai_call(prompt, fallback)
+    return ai_call(prompt, fallback, context="topics_generation", session_id=session_id)
 
 
 @topics_bp.route("/api/generate-interview-topics", methods=["POST"])
@@ -92,7 +93,7 @@ def generate_interview_topics():
             f"objectif={user_profile.get('current_goal') or 'non renseigné'}."
         )
 
-    topics = generate_topics_with_ai(cv_data, sector, company, role)
+    topics = generate_topics_with_ai(cv_data, sector, company, role, session_id=session_id)
 
     with get_db() as conn:
         conn.execute(

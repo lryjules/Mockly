@@ -36,6 +36,11 @@ def profile_page():
     return send_from_directory(str(FRONTEND_DIR), "profile.html")
 
 
+@pages_bp.route("/admin")
+def admin_page():
+    return send_from_directory(str(FRONTEND_DIR), "admin.html")
+
+
 # Catch-all : DOIT rester la dernière route enregistrée (voir app.py), sinon
 # elle intercepterait les routes ci-dessus.
 @pages_bp.route("/<path:path>")

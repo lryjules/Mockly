@@ -13,7 +13,8 @@ Routes (voir api/routes/ pour le détail) :
   interview_routes  → /api/interview/start, /respond, /finish
   profile_routes    → /api/informations-pro, /api/profile/readiness-check, /api/profile/competencies/<user_id>
   sessions_routes   → /api/sessions, /api/sessions/<id>
-  pages_routes      → sert le frontend (/, /results, /interview, /configuration)
+  admin_routes      → /api/admin/kpis, /api/admin/business-metrics
+  pages_routes      → sert le frontend (/, /results, /interview, /configuration, /admin)
 """
 
 from dotenv import load_dotenv
@@ -32,6 +33,7 @@ from api.routes.chat_routes import chat_bp
 from api.routes.interview_routes import interview_bp
 from api.routes.profile_routes import profile_bp
 from api.routes.sessions_routes import sessions_bp
+from api.routes.admin_routes import admin_bp
 from api.routes.pages_routes import pages_bp
 
 app = Flask(__name__, static_folder=None)
@@ -44,6 +46,7 @@ app.register_blueprint(chat_bp)
 app.register_blueprint(interview_bp)
 app.register_blueprint(profile_bp)
 app.register_blueprint(sessions_bp)
+app.register_blueprint(admin_bp)
 app.register_blueprint(pages_bp)  # toujours en dernier : contient la route catch-all "/<path:path>"
 
 # Doit s'exécuter à l'import du module, pas seulement sous __main__ : gunicorn

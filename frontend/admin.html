@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mockly — Admin Dashboard</title>
+  <meta name="description" content="Indicateurs produit, IA, business et pilote de Mockly.">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    html, body { overflow: auto; height: auto; }
+
+    .admin-layout {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 2rem 1.2rem 3rem;
+    }
+
+    .admin-header { margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
+    .admin-header h1 { font-size: 1.3rem; color: var(--vscode-text-bright); margin-bottom: 0.4rem; }
+    .admin-header p { color: var(--vscode-text-muted); font-size: 0.9rem; line-height: 1.6; }
+    .admin-refresh-btn { flex-shrink: 0; }
+
+    .admin-locked {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: var(--vscode-text-muted);
+      background: var(--vscode-sidebar);
+      border: 1px solid var(--vscode-border);
+      border-radius: 14px;
+    }
+    .admin-locked a { color: var(--vscode-blue); }
+
+    .kpi-section { margin-bottom: 2rem; }
+    .kpi-section-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--vscode-text-bright);
+      margin-bottom: 0.4rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .kpi-section-subtitle {
+      font-size: 0.8rem;
+      color: var(--vscode-text-muted);
+      margin-bottom: 0.9rem;
+      line-height: 1.5;
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 0.75rem;
+    }
+
+    .kpi-tile {
+      background: var(--vscode-sidebar);
+      border: 1px solid var(--vscode-border);
+      border-radius: 10px;
+      padding: 0.9rem 1rem;
+    }
+    .kpi-tile-label {
+      font-size: 0.7rem;
+      color: var(--vscode-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.4rem;
+    }
+    .kpi-tile-value {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--vscode-text-bright);
+      line-height: 1.1;
+    }
+    .kpi-tile-value.accent { color: var(--vscode-blue); }
+    .kpi-tile-value.good { color: var(--vscode-green); }
+    .kpi-tile-value.warn { color: var(--vscode-orange); }
+    .kpi-tile-value.bad { color: #ff6b6b; }
+    .kpi-tile-meta {
+      font-size: 0.72rem;
+      color: var(--vscode-text-muted);
+      margin-top: 0.3rem;
+    }
+
+    .model-dist-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 0.45rem;
+      font-size: 0.8rem;
+    }
+    .model-dist-name { width: 160px; flex-shrink: 0; color: var(--vscode-text); }
+    .model-dist-track {
+      flex: 1;
+      height: 8px;
+      background: var(--vscode-line);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .model-dist-fill { height: 100%; background: var(--vscode-blue); border-radius: 999px; }
+    .model-dist-count { width: 90px; flex-shrink: 0; text-align: right; color: var(--vscode-text-muted); font-size: 0.75rem; }
+
+    .business-form {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 0.8rem;
+      background: var(--vscode-sidebar);
+      border: 1px solid var(--vscode-border);
+      border-radius: 10px;
+      padding: 1rem;
+    }
+    .business-form label {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      font-size: 0.78rem;
+      color: var(--vscode-text-muted);
+    }
+    .business-form input {
+      background: var(--vscode-line);
+      border: 1px solid var(--vscode-border);
+      border-radius: 6px;
+      padding: 0.5rem 0.6rem;
+      color: var(--vscode-text);
+      font: inherit;
+      font-size: 0.85rem;
+    }
+    .business-form input:focus { outline: none; border-color: var(--vscode-blue); }
+    .business-form-actions { grid-column: 1 / -1; display: flex; align-items: center; gap: 0.8rem; margin-top: 0.2rem; }
+    .business-save-status { font-size: 0.8rem; color: var(--vscode-blue); }
+  </style>
+</head>
+<body>
+  <nav class="app-nav">
+    <a href="workspace.html">📄 Coach</a>
+    <a href="/interview">🎙️ Interview</a>
+    <a href="/profile">📈 Ma progression</a>
+    <a href="/results">📊 Historique</a>
+    <a href="/configuration">⚙️ Configuration</a>
+    <div class="nav-right">
+      <a href="/admin" class="admin-nav-link active hidden">🛡️ Admin</a>
+      <a href="auth.html" onclick="localStorage.removeItem('mocklyUser')">↪ Déconnexion</a>
+    </div>
+  </nav>
+
+  <div class="admin-layout">
+    <div class="admin-header">
+      <div>
+        <h1>🛡️ Admin Dashboard</h1>
+        <p>Indicateurs calculés à partir des données réelles de l'app (comptes, sessions, entretiens, journal d'appels IA). Les métriques Business et de satisfaction sont saisies manuellement ci-dessous — aucune donnée d'usage ne permet de les déduire.</p>
+      </div>
+      <button id="refreshBtn" class="secondary-btn admin-refresh-btn" type="button">↻ Rafraîchir</button>
+    </div>
+
+    <div id="adminLocked" class="admin-locked hidden">
+      Accès réservé aux administrateurs. <a href="auth.html">Se connecter</a>
+    </div>
+
+    <div id="adminContent" class="hidden">
+      <section class="kpi-section">
+        <div class="kpi-section-title">📊 Product Metrics</div>
+        <div class="kpi-section-subtitle" id="productSubtitle"></div>
+        <div class="kpi-grid" id="productGrid"></div>
+      </section>
+
+      <section class="kpi-section">
+        <div class="kpi-section-title">🤖 AI Metrics</div>
+        <div class="kpi-grid" id="aiGrid"></div>
+        <div id="modelDistribution" style="margin-top:0.9rem"></div>
+      </section>
+
+      <section class="kpi-section">
+        <div class="kpi-section-title">💼 Business Metrics</div>
+        <div class="kpi-section-subtitle">Saisies manuelles — laisser un champ vide l'efface.</div>
+        <form id="businessForm" class="business-form"></form>
+      </section>
+
+      <section class="kpi-section">
+        <div class="kpi-section-title">🌱 Pilot Success Metrics</div>
+        <div class="kpi-grid" id="pilotGrid"></div>
+      </section>
+    </div>
+  </div>
+
+  <script src="admin.js"></script>
+  <script src="nav-admin.js"></script>
+</body>
+</html>
