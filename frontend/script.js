@@ -240,13 +240,14 @@ function initializeCanvas() {
         }
     });
 
-    // Zoom avec la molette (sensibilité très réduite)
+    // Zoom avec la molette : proportionnel à l'ampleur du scroll (pas un pas
+    // fixe) pour un ressenti naturel, aussi bien à la molette qu'au trackpad.
     canvasContainer.addEventListener('wheel', (e) => {
         e.preventDefault();
 
-        // Sensibilité très réduite : 0.02 pour un contrôle précis
-        const delta = e.deltaY > 0 ? -0.02 : 0.02;
-        const newScale = Math.max(0.3, Math.min(3, appState.canvasScale + delta));
+        const zoomIntensity = 0.0018;
+        const factor = Math.exp(-e.deltaY * zoomIntensity);
+        const newScale = Math.max(0.3, Math.min(3, appState.canvasScale * factor));
 
         // Zoom centré sur la souris
         const rect = canvasContainer.getBoundingClientRect();
@@ -533,6 +534,16 @@ function createChildNodes(topics, sector, company, role) {
     drawConnections();
 }
 
+// Fait apparaître un nœud en fondu + léger zoom plutôt qu'un pop-in brutal.
+// Double rAF nécessaire pour garantir que l'état initial (opacity:0, scale
+// réduite) soit bien peint avant de déclencher la transition vers l'état final.
+function playNodeAppearAnimation(nodeEl) {
+    nodeEl.classList.add('node-appear');
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => nodeEl.classList.remove('node-appear'));
+    });
+}
+
 function renderNode(node) {
     const canvas = document.getElementById('canvas');
 
@@ -541,6 +552,7 @@ function renderNode(node) {
     nodeEl.id = `node-${node.id}`;
     nodeEl.style.left = node.x + 'px';
     nodeEl.style.top = node.y + 'px';
+    applyStoredNodeSize(nodeEl, node);
 
     nodeEl.innerHTML = `
         <div class="node-header">
@@ -564,8 +576,10 @@ function renderNode(node) {
 
     // NOUVEAU: Drag & Drop sur chaque nœud
     makeNodeDraggable(nodeEl, node);
+    makeNodeResizable(nodeEl, node);
 
     canvas.appendChild(nodeEl);
+    playNodeAppearAnimation(nodeEl);
 
     // Bouton de suppression
     if (node.type !== 'cv') {
@@ -598,10 +612,11 @@ function makeNodeDraggable(nodeEl, node) {
     let initialX, initialY;
 
     nodeEl.addEventListener('pointerdown', (e) => {
-        // Ne pas drag si on clique sur un bouton ou tag
+        // Ne pas drag si on clique sur un bouton, un tag ou une poignée de redimensionnement
         if (e.target.classList.contains('node-expand') ||
             e.target.classList.contains('node-tag') ||
-            e.target.classList.contains('node-delete')) {
+            e.target.classList.contains('node-delete') ||
+            e.target.classList.contains('node-resize-handle')) {
             return;
         }
 
@@ -629,8 +644,8 @@ function makeNodeDraggable(nodeEl, node) {
         nodeEl.style.left = node.x + 'px';
         nodeEl.style.top = node.y + 'px';
 
-        // Redessiner les connexions en temps réel
-        drawConnections();
+        // Redessiner les connexions en temps réel (regroupé par frame)
+        scheduleDrawConnections();
     });
 
     document.addEventListener('pointerup', () => {
@@ -643,6 +658,84 @@ function makeNodeDraggable(nodeEl, node) {
     });
 }
 
+const NODE_MIN_WIDTH = 180;
+const NODE_MAX_WIDTH = 900;
+const NODE_MIN_HEIGHT = 90;
+const NODE_MAX_HEIGHT = 700;
+
+// Applique une taille précédemment choisie par l'utilisateur (stockée sur le
+// nœud) : utilisé aussi bien à la création qu'à la restauration depuis
+// l'état sauvegardé, pour que le redimensionnement survive à un rechargement.
+function applyStoredNodeSize(nodeEl, node) {
+    if (node.width) {
+        nodeEl.style.width = node.width + 'px';
+        nodeEl.style.maxWidth = 'none';
+    }
+    if (node.height) {
+        nodeEl.style.height = node.height + 'px';
+    }
+}
+
+// Ajoute des poignées sur les bords droit/bas et le coin d'une carte pour
+// permettre de modifier sa largeur et/ou sa hauteur en cliquant-glissant.
+function makeNodeResizable(nodeEl, node) {
+    const rightHandle = document.createElement('div');
+    rightHandle.className = 'node-resize-handle right';
+    const bottomHandle = document.createElement('div');
+    bottomHandle.className = 'node-resize-handle bottom';
+    const cornerHandle = document.createElement('div');
+    cornerHandle.className = 'node-resize-handle corner';
+    nodeEl.appendChild(rightHandle);
+    nodeEl.appendChild(bottomHandle);
+    nodeEl.appendChild(cornerHandle);
+
+    function startResize(handleEl, resizeWidth, resizeHeight) {
+        return (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+
+            const startX = e.clientX;
+            const startY = e.clientY;
+            const rect = nodeEl.getBoundingClientRect();
+            const startWidth = rect.width;
+            const startHeight = rect.height;
+
+            nodeEl.classList.add('resizing');
+            handleEl.classList.add('active');
+
+            function onMove(ev) {
+                if (resizeWidth) {
+                    const newWidth = Math.max(NODE_MIN_WIDTH, Math.min(NODE_MAX_WIDTH, startWidth + (ev.clientX - startX)));
+                    node.width = newWidth;
+                    nodeEl.style.width = newWidth + 'px';
+                    nodeEl.style.maxWidth = 'none';
+                }
+                if (resizeHeight) {
+                    const newHeight = Math.max(NODE_MIN_HEIGHT, Math.min(NODE_MAX_HEIGHT, startHeight + (ev.clientY - startY)));
+                    node.height = newHeight;
+                    nodeEl.style.height = newHeight + 'px';
+                }
+                scheduleDrawConnections();
+            }
+
+            function onUp() {
+                document.removeEventListener('pointermove', onMove);
+                document.removeEventListener('pointerup', onUp);
+                nodeEl.classList.remove('resizing');
+                handleEl.classList.remove('active');
+                saveWorkspaceState();
+            }
+
+            document.addEventListener('pointermove', onMove);
+            document.addEventListener('pointerup', onUp);
+        };
+    }
+
+    rightHandle.addEventListener('pointerdown', startResize(rightHandle, true, false));
+    bottomHandle.addEventListener('pointerdown', startResize(bottomHandle, false, true));
+    cornerHandle.addEventListener('pointerdown', startResize(cornerHandle, true, true));
+}
+
 
 function getNodeIcon(type) {
     const icons = {
@@ -653,6 +746,19 @@ function getNodeIcon(type) {
         chat: '💬'
     };
     return icons[type] || '•';
+}
+
+// Pendant un drag ou un pan, pointermove peut se déclencher bien plus souvent
+// qu'une frame d'affichage : on regroupe les appels avec requestAnimationFrame
+// pour éviter de recalculer les connexions (et de forcer un reflow) plusieurs
+// fois par frame, ce qui saccadait le déplacement des nœuds.
+let connectionsRafId = null;
+function scheduleDrawConnections() {
+    if (connectionsRafId) return;
+    connectionsRafId = requestAnimationFrame(() => {
+        connectionsRafId = null;
+        drawConnections();
+    });
 }
 
 function drawConnections() {
@@ -684,10 +790,11 @@ function drawConnections() {
 }
 
 function deleteNode(nodeId) {
-    // Supprimer le nœud du DOM
+    // Supprimer le nœud du DOM (fondu de sortie plutôt qu'une disparition brutale)
     const nodeEl = document.getElementById(`node-${nodeId}`);
     if (nodeEl) {
-        nodeEl.remove();
+        nodeEl.classList.add('node-exit');
+        setTimeout(() => nodeEl.remove(), 220);
     }
 
     // Supprimer le nœud de l'état
@@ -790,28 +897,53 @@ function addMessage(role, content) {
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
+// Anime canvasOffset/canvasScale vers une cible avec un easing, au lieu de
+// sauter instantanément — utilisé par les boutons (zoom, reset, fit) où un
+// changement de vue net rend l'expérience plus heurtée. Le drag et le zoom
+// à la molette restent instantanés (1:1 avec le geste), volontairement non animés.
+let viewAnimationId = null;
+function animateViewTo(targetOffset, targetScale, duration = 320) {
+    if (viewAnimationId) cancelAnimationFrame(viewAnimationId);
+
+    const startOffset = { ...appState.canvasOffset };
+    const startScale = appState.canvasScale;
+    const startTime = performance.now();
+    const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+
+    function tick(now) {
+        const t = Math.min(1, (now - startTime) / duration);
+        const eased = easeOutCubic(t);
+
+        appState.canvasOffset.x = startOffset.x + (targetOffset.x - startOffset.x) * eased;
+        appState.canvasOffset.y = startOffset.y + (targetOffset.y - startOffset.y) * eased;
+        appState.canvasScale = startScale + (targetScale - startScale) * eased;
+
+        updateCanvasTransform();
+        updateZoomIndicator();
+
+        if (t < 1) {
+            viewAnimationId = requestAnimationFrame(tick);
+        } else {
+            viewAnimationId = null;
+            if (appState.cvData) saveWorkspaceState();
+        }
+    }
+
+    viewAnimationId = requestAnimationFrame(tick);
+}
+
 function zoomIn() {
     const newScale = Math.min(3, appState.canvasScale + 0.2);
-    appState.canvasScale = newScale;
-    updateCanvasTransform();
-    updateZoomIndicator();
-    if (appState.cvData) saveWorkspaceState();
+    animateViewTo(appState.canvasOffset, newScale);
 }
 
 function zoomOut() {
     const newScale = Math.max(0.3, appState.canvasScale - 0.2);
-    appState.canvasScale = newScale;
-    updateCanvasTransform();
-    updateZoomIndicator();
-    if (appState.cvData) saveWorkspaceState();
+    animateViewTo(appState.canvasOffset, newScale);
 }
 
 function resetView() {
-    appState.canvasOffset = { x: 0, y: 0 };
-    appState.canvasScale = 1;
-    updateCanvasTransform();
-    updateZoomIndicator();
-    if (appState.cvData) saveWorkspaceState();
+    animateViewTo({ x: 0, y: 0 }, 1);
 }
 
 function fitView() {
@@ -843,19 +975,16 @@ function fitView() {
     const centerX = (minX + maxX) / 2;
     const centerY = (minY + maxY) / 2;
 
-    appState.canvasScale = newScale;
-    appState.canvasOffset.x = containerWidth / 2 - centerX * newScale;
-    appState.canvasOffset.y = containerHeight / 2 - centerY * newScale;
-
-    updateCanvasTransform();
-    updateZoomIndicator();
-    saveWorkspaceState();
+    animateViewTo({
+        x: containerWidth / 2 - centerX * newScale,
+        y: containerHeight / 2 - centerY * newScale,
+    }, newScale);
 }
 
 function updateCanvasTransform() {
     const canvas = document.getElementById('canvas');
     canvas.style.transform = `translate(${appState.canvasOffset.x}px, ${appState.canvasOffset.y}px) scale(${appState.canvasScale})`;
-    drawConnections();
+    scheduleDrawConnections();
 }
 
 
@@ -914,7 +1043,9 @@ function renderResponseNode(node) {
     nodeEl.id = `node-${node.id}`;
     nodeEl.style.left = node.x + 'px';
     nodeEl.style.top = node.y + 'px';
+    applyStoredNodeSize(nodeEl, node);
     canvas.appendChild(nodeEl);
+    playNodeAppearAnimation(nodeEl);
 
     if (node.evaluation) {
         renderEvaluationContent(node, nodeEl);
@@ -923,6 +1054,7 @@ function renderResponseNode(node) {
     }
 
     makeNodeDraggable(nodeEl, node);
+    makeNodeResizable(nodeEl, node);
     return nodeEl;
 }
 
@@ -988,6 +1120,7 @@ async function submitResponse(responseNode, userResponse, nodeEl) {
 
         renderEvaluationContent(responseNode, nodeEl);
         makeNodeDraggable(nodeEl, responseNode);
+        makeNodeResizable(nodeEl, responseNode);
 
     } catch (error) {
         console.error('Erreur:', error);

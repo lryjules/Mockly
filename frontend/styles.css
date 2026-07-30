@@ -203,16 +203,75 @@ body {
     border-radius: 8px;
     padding: 1rem;
     cursor: move;
-    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+    transition: box-shadow 0.2s ease, border-color 0.2s ease,
+        opacity 0.22s ease, scale 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
     z-index: 10;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
     will-change: transform;
     touch-action: none;
+    overflow-y: auto;
 }
 
 .node:hover {
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
     border-color: var(--vscode-blue);
+}
+
+.node.resizing {
+    transition: none;
+    user-select: none;
+}
+
+/* Poignées de redimensionnement : fines bandes sur les bords droit/bas
+   + un coin, invisibles au repos et visibles au survol pour indiquer
+   qu'on peut cliquer-glisser le bord pour changer la taille de la carte. */
+.node-resize-handle {
+    position: absolute;
+    touch-action: none;
+}
+
+.node-resize-handle.right {
+    top: 6px;
+    bottom: 6px;
+    right: -4px;
+    width: 8px;
+    cursor: ew-resize;
+}
+
+.node-resize-handle.bottom {
+    left: 6px;
+    right: 6px;
+    bottom: -4px;
+    height: 8px;
+    cursor: ns-resize;
+}
+
+.node-resize-handle.corner {
+    right: -4px;
+    bottom: -4px;
+    width: 14px;
+    height: 14px;
+    cursor: nwse-resize;
+    border-radius: 3px;
+}
+
+.node-resize-handle.right:hover,
+.node-resize-handle.bottom:hover,
+.node-resize-handle.corner:hover,
+.node-resize-handle.right.active,
+.node-resize-handle.bottom.active,
+.node-resize-handle.corner.active {
+    background: rgba(86, 156, 214, 0.35);
+}
+
+/* État initial/final des nœuds qui apparaissent ou disparaissent :
+   scale + opacity (pas left/top/transform, pour ne jamais interférer
+   avec le drag qui pilote déjà la position via left/top). */
+.node.node-appear,
+.node.node-exit {
+    opacity: 0;
+    scale: 0.85;
+    pointer-events: none;
 }
 
 .node.dragging {
