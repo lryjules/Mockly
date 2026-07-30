@@ -1,6 +1,6 @@
 """Sert le frontend statique : /, /results, /interview, /configuration, /profile,
-plus le catch-all qui sert le reste (CSS/JS) puisque app.py désactive le
-static_folder automatique de Flask (static_folder=None)."""
+/admin, /school, plus le catch-all qui sert le reste (CSS/JS) puisque app.py
+désactive le static_folder automatique de Flask (static_folder=None)."""
 
 from pathlib import Path
 
@@ -39,6 +39,11 @@ def profile_page():
 @pages_bp.route("/admin")
 def admin_page():
     return send_from_directory(str(FRONTEND_DIR), "admin.html")
+
+
+@pages_bp.route("/school")
+def school_page():
+    return send_from_directory(str(FRONTEND_DIR), "school.html")
 
 
 # Catch-all : DOIT rester la dernière route enregistrée (voir app.py), sinon

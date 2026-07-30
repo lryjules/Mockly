@@ -232,7 +232,8 @@ function renderCreditStepper(userId, kind, value) {
 function renderUsersTable(users) {
     el('usersTableBody').innerHTML = users.map((u) => `
         <tr>
-            <td>${escHtml(u.email)}${u.is_admin ? '<span class="admin-badge">admin</span>' : ''}</td>
+            <td>${escHtml(u.email)}${u.is_admin ? '<span class="admin-badge">admin</span>' : ''}${u.is_school_admin ? '<span class="admin-badge">école</span>' : ''}</td>
+            <td>${escHtml(u.school_name || '—')}</td>
             <td>${escHtml((u.created_at || '').slice(0, 10))}</td>
             <td>${u.nb_sessions}</td>
             <td>${u.nb_interviews}</td>
@@ -280,7 +281,7 @@ async function adjustCredit(userId, kind, stepperEl, delta) {
 async function openUsersModal() {
     const admin = getCurrentUser();
     el('usersModalBackdrop').classList.remove('hidden');
-    el('usersTableBody').innerHTML = '<tr><td colspan="6">Chargement...</td></tr>';
+    el('usersTableBody').innerHTML = '<tr><td colspan="7">Chargement...</td></tr>';
 
     try {
         const response = await fetch(`${API_BASE_URL}/admin/users?user_id=${encodeURIComponent(admin.id)}`);
@@ -288,7 +289,84 @@ async function openUsersModal() {
         if (!response.ok) throw new Error(users.error || 'Erreur');
         renderUsersTable(users);
     } catch (error) {
-        el('usersTableBody').innerHTML = `<tr><td colspan="6">⚠️ ${escHtml(error.message)}</td></tr>`;
+        el('usersTableBody').innerHTML = `<tr><td colspan="7">⚠️ ${escHtml(error.message)}</td></tr>`;
+    }
+}
+
+function renderSchoolsTable(schools) {
+    if (schools.length === 0) {
+        el('schoolsTableBody').innerHTML = '<tr><td colspan="5">Aucune école créée pour l\'instant.</td></tr>';
+        return;
+    }
+    el('schoolsTableBody').innerHTML = schools.map((s) => `
+        <tr>
+            <td>${escHtml(s.name)}</td>
+            <td>${escHtml(s.admin_email || '—')}</td>
+            <td>${s.nb_students}</td>
+            <td>${escHtml((s.created_at || '').slice(0, 10))}</td>
+            <td><button type="button" class="school-delete-btn" data-school="${s.id}" ${s.nb_students > 0 ? 'disabled title="Retire d\'abord les élèves de cette école"' : ''}>Supprimer</button></td>
+        </tr>
+    `).join('');
+
+    el('schoolsTableBody').querySelectorAll('.school-delete-btn').forEach((btn) => {
+        btn.addEventListener('click', () => deleteSchool(btn.dataset.school));
+    });
+}
+
+async function loadSchools() {
+    const admin = getCurrentUser();
+    if (!admin || !admin.is_admin) return;
+    try {
+        const response = await fetch(`${API_BASE_URL}/admin/schools?user_id=${encodeURIComponent(admin.id)}`);
+        const schools = await response.json();
+        if (!response.ok) throw new Error(schools.error || 'Erreur');
+        renderSchoolsTable(schools);
+    } catch (error) {
+        el('schoolsTableBody').innerHTML = `<tr><td colspan="5">⚠️ ${escHtml(error.message)}</td></tr>`;
+    }
+}
+
+async function createSchool(event) {
+    event.preventDefault();
+    const admin = getCurrentUser();
+    const status = el('schoolCreateStatus');
+    const formData = new FormData(event.target);
+
+    status.textContent = 'Création...';
+    try {
+        const response = await fetch(`${API_BASE_URL}/admin/schools`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                user_id: admin.id,
+                name: formData.get('name'),
+                admin_email: formData.get('admin_email'),
+                admin_password: formData.get('admin_password'),
+            }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Erreur');
+
+        status.textContent = 'École créée ✅';
+        event.target.reset();
+        loadSchools();
+    } catch (error) {
+        status.textContent = error.message;
+    }
+}
+
+async function deleteSchool(schoolId) {
+    if (!confirm('Supprimer cette école ?')) return;
+    const admin = getCurrentUser();
+    try {
+        const response = await fetch(`${API_BASE_URL}/admin/schools/${schoolId}?user_id=${encodeURIComponent(admin.id)}`, {
+            method: 'DELETE',
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Erreur');
+        loadSchools();
+    } catch (error) {
+        alert(error.message);
     }
 }
 
@@ -305,7 +383,9 @@ function initAdminPage() {
     document.addEventListener('click', (e) => {
         if (e.target.closest('#registeredUsersTile')) openUsersModal();
     });
+    el('schoolCreateForm').addEventListener('submit', createSchool);
     loadKpis();
+    loadSchools();
 }
 
 document.addEventListener('DOMContentLoaded', initAdminPage);

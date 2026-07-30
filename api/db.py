@@ -148,6 +148,15 @@ def init_db() -> None:
             value      REAL,
             updated_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
+
+        -- Écoles / career centers. Chaque étudiant appartient à une école
+        -- (users.school_id) ; chaque école a un compte de gestion dédié
+        -- (users.is_school_admin=1, users.school_id = l'école qu'il gère).
+        CREATE TABLE IF NOT EXISTS schools (
+            id         TEXT PRIMARY KEY,
+            name       TEXT NOT NULL UNIQUE,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
         """)
 
     with get_db() as conn:
@@ -165,6 +174,14 @@ def init_db() -> None:
             pass
         try:
             conn.execute("ALTER TABLE users ADD COLUMN coach_credits INTEGER NOT NULL DEFAULT 3")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            conn.execute("ALTER TABLE users ADD COLUMN school_id TEXT REFERENCES schools(id)")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            conn.execute("ALTER TABLE users ADD COLUMN is_school_admin INTEGER NOT NULL DEFAULT 0")
         except sqlite3.OperationalError:
             pass
 

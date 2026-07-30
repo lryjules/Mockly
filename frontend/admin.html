@@ -234,6 +234,59 @@
     .business-form input:focus { outline: none; border-color: var(--vscode-blue); }
     .business-form-actions { grid-column: 1 / -1; display: flex; align-items: center; gap: 0.8rem; margin-top: 0.2rem; }
     .business-save-status { font-size: 0.8rem; color: var(--vscode-blue); }
+
+    .school-create-form {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.8rem;
+      background: var(--vscode-sidebar);
+      border: 1px solid var(--vscode-border);
+      border-radius: 10px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    .school-create-form label {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      font-size: 0.78rem;
+      color: var(--vscode-text-muted);
+    }
+    .school-create-form input {
+      background: var(--vscode-line);
+      border: 1px solid var(--vscode-border);
+      border-radius: 6px;
+      padding: 0.5rem 0.6rem;
+      color: var(--vscode-text);
+      font: inherit;
+      font-size: 0.85rem;
+    }
+    .school-create-form input:focus { outline: none; border-color: var(--vscode-blue); }
+    .school-create-actions { grid-column: 1 / -1; display: flex; align-items: center; gap: 0.8rem; }
+    .school-create-status { font-size: 0.8rem; color: var(--vscode-blue); }
+
+    .schools-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .schools-table th {
+      text-align: left;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--vscode-text-muted);
+      padding: 0.6rem;
+      border-bottom: 1px solid var(--vscode-border);
+    }
+    .schools-table td { padding: 0.6rem; border-bottom: 1px solid var(--vscode-border); color: var(--vscode-text); }
+    .school-delete-btn {
+      background: none;
+      border: 1px solid var(--vscode-border);
+      border-radius: 6px;
+      color: #ff6b6b;
+      cursor: pointer;
+      padding: 0.3rem 0.6rem;
+      font-size: 0.78rem;
+    }
+    .school-delete-btn:hover { border-color: #ff6b6b; }
+    .school-delete-btn:disabled { opacity: 0.4; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -285,6 +338,38 @@
         <div class="kpi-section-title">🌱 Pilot Success Metrics</div>
         <div class="kpi-grid" id="pilotGrid"></div>
       </section>
+
+      <section class="kpi-section">
+        <div class="kpi-section-title">🏫 Écoles</div>
+        <div class="kpi-section-subtitle">Crée un profil école : un pool d'élèves + un compte de gestion dédié pour consulter ses KPIs et gérer ses crédits.</div>
+        <form id="schoolCreateForm" class="school-create-form">
+          <label>Nom de l'école
+            <input type="text" name="name" required placeholder="ex: ESEO">
+          </label>
+          <label>Email du compte école
+            <input type="email" name="admin_email" required placeholder="ecole@exemple.com">
+          </label>
+          <label>Mot de passe
+            <input type="text" name="admin_password" required placeholder="mot de passe">
+          </label>
+          <div class="school-create-actions">
+            <button type="submit" class="primary-btn">Créer l'école</button>
+            <span class="school-create-status" id="schoolCreateStatus"></span>
+          </div>
+        </form>
+        <table class="schools-table">
+          <thead>
+            <tr>
+              <th>École</th>
+              <th>Compte de gestion</th>
+              <th>Élèves</th>
+              <th>Créée le</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="schoolsTableBody"></tbody>
+        </table>
+      </section>
     </div>
   </div>
 
@@ -299,6 +384,7 @@
           <thead>
             <tr>
               <th>Email</th>
+              <th>École</th>
               <th>Inscrit le</th>
               <th>Sessions CV</th>
               <th>Entretiens</th>

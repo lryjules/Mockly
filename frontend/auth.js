@@ -1,5 +1,10 @@
 const API_BASE_URL = '/api';
 let authMode = 'signup';
+
+function escHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str).replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
+}
 let onboardingStep = 0;
 let onboardingAnswers = {};
 let currentUser = null;
@@ -26,6 +31,25 @@ function initAuthPage() {
     bindEvents();
     initChatScrollBehavior();
     restoreSession();
+    loadSchoolsIntoSelect();
+}
+
+async function loadSchoolsIntoSelect() {
+    const select = document.getElementById('authSchool');
+    try {
+        const response = await fetch(`${API_BASE_URL}/schools`);
+        const schools = await response.json();
+        if (!response.ok) throw new Error(schools.error || 'Erreur');
+
+        if (schools.length === 0) {
+            select.innerHTML = '<option value="">Aucune école disponible pour l’instant</option>';
+            return;
+        }
+        select.innerHTML = '<option value="">Sélectionne ton école</option>' +
+            schools.map((s) => `<option value="${escHtml(s.id)}">${escHtml(s.name)}</option>`).join('');
+    } catch (error) {
+        select.innerHTML = '<option value="">Impossible de charger les écoles</option>';
+    }
 }
 
 function bindEvents() {
@@ -55,11 +79,13 @@ function switchAuthMode(mode) {
     const signupTab = document.getElementById('showSignupTab');
     const loginTab = document.getElementById('showLoginTab');
     const confirmGroup = document.getElementById('confirmPasswordGroup');
+    const schoolGroup = document.getElementById('schoolGroup');
     const submitBtn = document.getElementById('authSubmitBtn');
 
     signupTab.classList.toggle('active', mode === 'signup');
     loginTab.classList.toggle('active', mode === 'login');
     confirmGroup.classList.toggle('hidden', mode === 'login');
+    schoolGroup.classList.toggle('hidden', mode === 'login');
     submitBtn.textContent = mode === 'signup' ? 'Créer mon compte' : 'Se connecter';
     document.getElementById('authMessage').textContent = '';
 }
@@ -70,6 +96,7 @@ async function handleAuthSubmit(event) {
     const email = document.getElementById('authEmail').value.trim();
     const password = document.getElementById('authPassword').value;
     const confirmPassword = document.getElementById('authConfirmPassword').value;
+    const schoolId = document.getElementById('authSchool').value;
     const messageBox = document.getElementById('authMessage');
 
     if (!email || !password) {
@@ -79,6 +106,11 @@ async function handleAuthSubmit(event) {
 
     if (authMode === 'signup' && password !== confirmPassword) {
         messageBox.textContent = 'La confirmation du mot de passe ne correspond pas.';
+        return;
+    }
+
+    if (authMode === 'signup' && !schoolId) {
+        messageBox.textContent = 'Sélectionne ton école.';
         return;
     }
 
@@ -94,7 +126,8 @@ async function handleAuthSubmit(event) {
             body: JSON.stringify({
                 email,
                 password,
-                confirmPassword: authMode === 'signup' ? confirmPassword : password
+                confirmPassword: authMode === 'signup' ? confirmPassword : password,
+                school_id: authMode === 'signup' ? schoolId : undefined
             })
         });
 
@@ -108,8 +141,10 @@ async function handleAuthSubmit(event) {
 
         if (authMode === 'login') {
             // L'échange avec Mockly n'a lieu qu'une fois, à la création du compte.
-            // Une connexion classique va donc directement au workspace.
-            window.location.href = 'workspace.html';
+            // Une connexion classique va donc directement au workspace — sauf les
+            // comptes école, qui n'ont pas de workspace personnel et vont sur leur
+            // tableau de bord de pool.
+            window.location.href = currentUser.is_school_admin ? '/school' : 'workspace.html';
             return;
         }
 

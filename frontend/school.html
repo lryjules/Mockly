@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <script src="auth-guard.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mockly — Tableau de bord école</title>
+  <meta name="description" content="KPIs du pool d'élèves, stats individuelles et gestion des crédits pour les établissements partenaires.">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    html, body { overflow: auto; height: auto; }
+
+    .school-layout {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 2rem 1.2rem 3rem;
+    }
+
+    .school-header { margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
+    .school-header h1 { font-size: 1.3rem; color: var(--vscode-text-bright); margin-bottom: 0.4rem; }
+    .school-header p { color: var(--vscode-text-muted); font-size: 0.9rem; line-height: 1.6; }
+    .school-refresh-btn { flex-shrink: 0; }
+
+    .school-locked {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: var(--vscode-text-muted);
+      background: var(--vscode-sidebar);
+      border: 1px solid var(--vscode-border);
+      border-radius: 14px;
+    }
+    .school-locked a { color: var(--vscode-blue); }
+
+    .kpi-section { margin-bottom: 2rem; }
+    .kpi-section-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--vscode-text-bright);
+      margin-bottom: 0.4rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .kpi-section-subtitle {
+      font-size: 0.8rem;
+      color: var(--vscode-text-muted);
+      margin-bottom: 0.9rem;
+      line-height: 1.5;
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 0.75rem;
+    }
+
+    .kpi-tile {
+      background: var(--vscode-sidebar);
+      border: 1px solid var(--vscode-border);
+      border-radius: 10px;
+      padding: 0.9rem 1rem;
+    }
+    .kpi-tile-label {
+      font-size: 0.7rem;
+      color: var(--vscode-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.4rem;
+    }
+    .kpi-tile-value {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--vscode-text-bright);
+      line-height: 1.1;
+    }
+    .kpi-tile-value.accent { color: var(--vscode-blue); }
+    .kpi-tile-value.good { color: var(--vscode-green); }
+    .kpi-tile-value.warn { color: var(--vscode-orange); }
+    .kpi-tile-value.bad { color: #ff6b6b; }
+    .kpi-tile-meta { font-size: 0.72rem; color: var(--vscode-text-muted); margin-top: 0.3rem; }
+
+    .students-table, .weakest-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .students-table th, .weakest-table th {
+      text-align: left;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--vscode-text-muted);
+      padding: 0.6rem;
+      border-bottom: 1px solid var(--vscode-border);
+    }
+    .students-table td, .weakest-table td {
+      padding: 0.6rem;
+      border-bottom: 1px solid var(--vscode-border);
+      color: var(--vscode-text);
+      vertical-align: middle;
+    }
+
+    .credit-stepper { display: flex; align-items: center; gap: 0.4rem; }
+    .credit-stepper button {
+      width: 24px;
+      height: 24px;
+      border-radius: 5px;
+      border: 1px solid var(--vscode-border);
+      background: var(--vscode-line);
+      color: var(--vscode-text);
+      cursor: pointer;
+      font-size: 0.9rem;
+      line-height: 1;
+    }
+    .credit-stepper button:hover { border-color: var(--vscode-blue); color: var(--vscode-blue); }
+    .credit-stepper button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .credit-stepper .credit-value { min-width: 1.6rem; text-align: center; font-weight: 700; color: var(--vscode-blue); }
+    .credit-stepper.zero .credit-value { color: #ff6b6b; }
+
+    .bulk-credit-form {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: 0.9rem;
+      background: var(--vscode-sidebar);
+      border: 1px solid var(--vscode-border);
+      border-radius: 10px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    .bulk-credit-form label { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.78rem; color: var(--vscode-text-muted); }
+    .bulk-credit-form input {
+      background: var(--vscode-line);
+      border: 1px solid var(--vscode-border);
+      border-radius: 6px;
+      padding: 0.5rem 0.6rem;
+      color: var(--vscode-text);
+      font: inherit;
+      font-size: 0.85rem;
+      width: 110px;
+    }
+    .bulk-credit-form input:focus { outline: none; border-color: var(--vscode-blue); }
+    .bulk-save-status { font-size: 0.8rem; color: var(--vscode-blue); }
+
+    .weak-name { font-weight: 600; color: var(--vscode-text-bright); }
+    .weak-category { font-size: 0.7rem; color: var(--vscode-text-muted); }
+  </style>
+</head>
+<body>
+  <nav class="app-nav">
+    <a href="/school" class="active">🏫 Tableau de bord école</a>
+    <div class="nav-right">
+      <a href="auth.html" onclick="localStorage.removeItem('mocklyUser')">↪ Déconnexion</a>
+    </div>
+  </nav>
+
+  <div class="school-layout">
+    <div class="school-header">
+      <div>
+        <h1>🏫 Tableau de bord école</h1>
+        <p id="schoolName">Chargement...</p>
+      </div>
+      <button id="refreshBtn" class="secondary-btn school-refresh-btn" type="button">↻ Rafraîchir</button>
+    </div>
+
+    <div id="schoolLocked" class="school-locked hidden">
+      Accès réservé aux comptes école. <a href="auth.html">Se connecter</a>
+    </div>
+
+    <div id="schoolContent" class="hidden">
+      <section class="kpi-section">
+        <div class="kpi-section-title">📊 KPIs du pool</div>
+        <div class="kpi-section-subtitle" id="kpiSubtitle"></div>
+        <div class="kpi-grid" id="kpiGrid"></div>
+      </section>
+
+      <section class="kpi-section">
+        <div class="kpi-section-title">📉 Compétences les moins bien notées</div>
+        <div class="kpi-section-subtitle">Uniquement les compétences réellement évaluées (au moins une fois) sur l'ensemble du pool.</div>
+        <table class="weakest-table">
+          <thead>
+            <tr>
+              <th>Compétence</th>
+              <th>Score moyen</th>
+              <th>Élèves concernés</th>
+            </tr>
+          </thead>
+          <tbody id="weakestTableBody"></tbody>
+        </table>
+      </section>
+
+      <section class="kpi-section">
+        <div class="kpi-section-title">🎟️ Crédits du pool</div>
+        <div class="kpi-section-subtitle">Ajoute (ou retire, avec un nombre négatif) des crédits à tous les élèves de l'école d'un coup.</div>
+        <form id="bulkCreditForm" class="bulk-credit-form">
+          <label>Crédits Interview (delta)
+            <input type="number" name="interview_credits" step="1" placeholder="ex: 5 ou -2">
+          </label>
+          <label>Crédits Coach (delta)
+            <input type="number" name="coach_credits" step="1" placeholder="ex: 5 ou -2">
+          </label>
+          <button type="submit" class="primary-btn">Appliquer au pool</button>
+          <span class="bulk-save-status" id="bulkSaveStatus"></span>
+        </form>
+      </section>
+
+      <section class="kpi-section">
+        <div class="kpi-section-title">👥 Élèves</div>
+        <table class="students-table">
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>Inscrit le</th>
+              <th>Sessions CV</th>
+              <th>Entretiens</th>
+              <th>Score moyen</th>
+              <th>Crédits Interview</th>
+              <th>Crédits Coach</th>
+            </tr>
+          </thead>
+          <tbody id="studentsTableBody"></tbody>
+        </table>
+      </section>
+    </div>
+  </div>
+
+  <script src="school.js"></script>
+</body>
+</html>
