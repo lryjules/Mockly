@@ -62,3 +62,57 @@ def save_business_metrics():
     with get_db() as conn:
         business = admin_metrics.get_business_metrics(conn)
     return jsonify({"business": business})
+
+
+@admin_bp.route("/api/admin/users", methods=["GET"])
+def list_users():
+    user_id = request.args.get("user_id")
+    if not _is_admin(user_id):
+        return jsonify({"error": "Accès réservé aux administrateurs"}), 403
+
+    with get_db() as conn:
+        rows = conn.execute("""
+            SELECT u.id, u.email, u.is_admin, u.interview_credits, u.coach_credits, u.created_at,
+                   COUNT(DISTINCT s.id)  AS nb_sessions,
+                   COUNT(DISTINCT ji.id) AS nb_interviews
+            FROM users u
+            LEFT JOIN sessions s ON s.user_id = u.id
+            LEFT JOIN job_interviews ji ON ji.user_id = u.id
+            GROUP BY u.id
+            ORDER BY u.created_at DESC
+        """).fetchall()
+
+    return jsonify([dict(row) for row in rows])
+
+
+@admin_bp.route("/api/admin/users/<target_user_id>/credits", methods=["POST"])
+def update_user_credits(target_user_id):
+    data = request.get_json(force=True)
+    user_id = data.get("user_id")
+    if not _is_admin(user_id):
+        return jsonify({"error": "Accès réservé aux administrateurs"}), 403
+
+    updates = {}
+    for key in ("interview_credits", "coach_credits"):
+        if key in data:
+            try:
+                updates[key] = max(0, int(data[key]))
+            except (TypeError, ValueError):
+                return jsonify({"error": f"{key} doit être un entier"}), 400
+
+    if not updates:
+        return jsonify({"error": "Aucun champ à mettre à jour"}), 400
+
+    with get_db() as conn:
+        existing = conn.execute("SELECT id FROM users WHERE id=?", (target_user_id,)).fetchone()
+        if not existing:
+            return jsonify({"error": "Utilisateur introuvable"}), 404
+
+        set_clause = ", ".join(f"{key}=?" for key in updates)
+        conn.execute(f"UPDATE users SET {set_clause} WHERE id=?", (*updates.values(), target_user_id))
+
+        row = conn.execute(
+            "SELECT interview_credits, coach_credits FROM users WHERE id=?", (target_user_id,)
+        ).fetchone()
+
+    return jsonify({"interview_credits": row["interview_credits"], "coach_credits": row["coach_credits"]})

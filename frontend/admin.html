@@ -82,6 +82,111 @@
       margin-top: 0.3rem;
     }
 
+    .kpi-tile.clickable {
+      cursor: pointer;
+      transition: border-color 0.15s ease, transform 0.15s ease;
+    }
+    .kpi-tile.clickable:hover {
+      border-color: var(--vscode-blue);
+      transform: translateY(-1px);
+    }
+    .kpi-tile.clickable .kpi-tile-meta { color: var(--vscode-blue); }
+
+    .users-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      padding: 1.5rem;
+    }
+    .users-modal {
+      background: var(--vscode-sidebar);
+      border: 1px solid var(--vscode-border);
+      border-radius: 12px;
+      width: min(920px, 100%);
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+    }
+    .users-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--vscode-border);
+    }
+    .users-modal-header h2 { font-size: 1.05rem; color: var(--vscode-text-bright); }
+    .modal-close-btn {
+      background: none;
+      border: none;
+      color: var(--vscode-text-muted);
+      font-size: 1.4rem;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0.2rem 0.5rem;
+    }
+    .modal-close-btn:hover { color: var(--vscode-text-bright); }
+
+    .users-modal-body { overflow: auto; padding: 0.5rem 1.25rem 1.25rem; }
+
+    .users-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .users-table th {
+      text-align: left;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--vscode-text-muted);
+      padding: 0.6rem 0.6rem;
+      border-bottom: 1px solid var(--vscode-border);
+      position: sticky;
+      top: 0;
+      background: var(--vscode-sidebar);
+    }
+    .users-table td {
+      padding: 0.6rem;
+      border-bottom: 1px solid var(--vscode-border);
+      color: var(--vscode-text);
+      vertical-align: middle;
+    }
+    .users-table .admin-badge {
+      font-size: 0.65rem;
+      color: var(--vscode-blue);
+      border: 1px solid rgba(86, 156, 214, 0.4);
+      border-radius: 999px;
+      padding: 0.05rem 0.5rem;
+      margin-left: 0.4rem;
+    }
+
+    .credit-stepper {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .credit-stepper button {
+      width: 24px;
+      height: 24px;
+      border-radius: 5px;
+      border: 1px solid var(--vscode-border);
+      background: var(--vscode-line);
+      color: var(--vscode-text);
+      cursor: pointer;
+      font-size: 0.9rem;
+      line-height: 1;
+    }
+    .credit-stepper button:hover { border-color: var(--vscode-blue); color: var(--vscode-blue); }
+    .credit-stepper button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .credit-stepper .credit-value {
+      min-width: 1.6rem;
+      text-align: center;
+      font-weight: 700;
+      color: var(--vscode-blue);
+    }
+    .credit-stepper.zero .credit-value { color: #ff6b6b; }
+
     .model-dist-row {
       display: flex;
       align-items: center;
@@ -179,6 +284,30 @@
         <div class="kpi-section-title">🌱 Pilot Success Metrics</div>
         <div class="kpi-grid" id="pilotGrid"></div>
       </section>
+    </div>
+  </div>
+
+  <div id="usersModalBackdrop" class="users-modal-backdrop hidden">
+    <div class="users-modal">
+      <div class="users-modal-header">
+        <h2>👥 Comptes enregistrés</h2>
+        <button id="closeUsersModal" class="modal-close-btn" type="button">×</button>
+      </div>
+      <div class="users-modal-body">
+        <table class="users-table">
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>Inscrit le</th>
+              <th>Sessions CV</th>
+              <th>Entretiens</th>
+              <th>Crédits Interview</th>
+              <th>Crédits Coach</th>
+            </tr>
+          </thead>
+          <tbody id="usersTableBody"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 

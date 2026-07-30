@@ -9,6 +9,7 @@ from flask import Blueprint, request, jsonify
 from api.db import get_db, UPLOADS_DIR
 from api import ai_gateway
 from api import profile_engine
+from api import credits
 
 try:
     from pdfminer.high_level import extract_text as pdf_extract_text
@@ -123,6 +124,12 @@ def upload_cv():
     if ext not in (".pdf", ".docx"):
         return jsonify({"error": "Format non supporté. Utilisez PDF ou DOCX"}), 400
 
+    user_id = request.form.get("user_id") or None
+    if not user_id:
+        return jsonify({"error": "Connecte-toi pour déposer un CV"}), 401
+    if not credits.consume_credit(user_id, "coach"):
+        return jsonify({"error": "Crédits Coach épuisés. Contacte ton administrateur pour en obtenir davantage."}), 402
+
     session_id = str(uuid.uuid4())
     filename = f"{session_id}{ext}"
     filepath = str(UPLOADS_DIR / filename)
@@ -133,8 +140,6 @@ def upload_cv():
         cv_text = "[Texte non extractable — vérifiez que le PDF n'est pas une image scannée]"
 
     cv_data, analysis = parse_cv_with_ai(cv_text)
-
-    user_id = request.form.get("user_id") or None
 
     with get_db() as conn:
         conn.execute(

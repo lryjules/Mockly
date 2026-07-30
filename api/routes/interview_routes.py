@@ -24,6 +24,7 @@ from api.speech import tts as speech_tts
 from api import profileprocessing
 from api import interviewengine
 from api import profile_engine
+from api import credits
 
 interview_bp = Blueprint("interview", __name__)
 
@@ -63,6 +64,10 @@ def interview_start():
 
     if not job_description:
         return jsonify({"error": "job_description requis"}), 400
+    if not user_id:
+        return jsonify({"error": "Connecte-toi pour démarrer un entretien"}), 401
+    if not credits.consume_credit(user_id, "interview"):
+        return jsonify({"error": "Crédits Interview épuisés. Contacte ton administrateur pour en obtenir davantage."}), 402
 
     cv_data = None
     if session_id:

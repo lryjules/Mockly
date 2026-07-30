@@ -44,11 +44,13 @@ def init_db() -> None:
     with get_db() as conn:
         conn.executescript("""
         CREATE TABLE IF NOT EXISTS users (
-            id            TEXT PRIMARY KEY,
-            email         TEXT NOT NULL UNIQUE,
-            password_hash TEXT NOT NULL,
-            is_admin      INTEGER NOT NULL DEFAULT 0,
-            created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+            id                TEXT PRIMARY KEY,
+            email             TEXT NOT NULL UNIQUE,
+            password_hash     TEXT NOT NULL,
+            is_admin          INTEGER NOT NULL DEFAULT 0,
+            interview_credits INTEGER NOT NULL DEFAULT 3,
+            coach_credits     INTEGER NOT NULL DEFAULT 3,
+            created_at        TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
         CREATE TABLE IF NOT EXISTS informations_pro (
@@ -155,6 +157,14 @@ def init_db() -> None:
             pass
         try:
             conn.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            conn.execute("ALTER TABLE users ADD COLUMN interview_credits INTEGER NOT NULL DEFAULT 3")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            conn.execute("ALTER TABLE users ADD COLUMN coach_credits INTEGER NOT NULL DEFAULT 3")
         except sqlite3.OperationalError:
             pass
 

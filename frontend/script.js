@@ -25,12 +25,38 @@ let appState = {
     activeNode: null
 };
 
-const WORKSPACE_STORAGE_KEY = 'mocklyWorkspaceState';
+// Clé historique (avant l'isolation par compte) : un seul espace de travail
+// partagé par tout le navigateur, quel que soit le compte connecté.
+const LEGACY_WORKSPACE_KEY = 'mocklyWorkspaceState';
+
+// L'espace de travail est propre à chaque compte : deux utilisateurs sur le
+// même navigateur ne doivent jamais voir le CV/la carte mentale de l'autre.
+function getWorkspaceStorageKey() {
+    const user = getCurrentUser();
+    return user && user.id ? `mocklyWorkspaceState:${user.id}` : null;
+}
+
+// Reprend une éventuelle sauvegarde de l'ancien espace partagé et l'attribue
+// au compte actuellement connecté (la seule attribution raisonnable possible),
+// puis supprime la clé partagée pour qu'elle ne fuite plus vers d'autres comptes.
+function migrateLegacyWorkspaceState() {
+    const legacy = localStorage.getItem(LEGACY_WORKSPACE_KEY);
+    if (!legacy) return;
+
+    const key = getWorkspaceStorageKey();
+    if (key && !localStorage.getItem(key)) {
+        localStorage.setItem(key, legacy);
+    }
+    localStorage.removeItem(LEGACY_WORKSPACE_KEY);
+}
 
 // Persiste l'essentiel de l'état (tout ce qui est nécessaire pour reconstruire
 // la carte mentale) pour que l'analyse de CV survive à un changement d'onglet
 // ou un rechargement de page.
 function saveWorkspaceState() {
+    const key = getWorkspaceStorageKey();
+    if (!key) return;
+
     const toSave = {
         sessionId: appState.sessionId,
         cvData: appState.cvData,
@@ -41,14 +67,17 @@ function saveWorkspaceState() {
         canvasScale: appState.canvasScale,
     };
     try {
-        localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify(toSave));
+        localStorage.setItem(key, JSON.stringify(toSave));
     } catch (error) {
         console.warn('Impossible de sauvegarder l\'espace de travail :', error);
     }
 }
 
 function loadWorkspaceState() {
-    const stored = localStorage.getItem(WORKSPACE_STORAGE_KEY);
+    const key = getWorkspaceStorageKey();
+    if (!key) return null;
+
+    const stored = localStorage.getItem(key);
     if (!stored) return null;
     try {
         return JSON.parse(stored);
@@ -62,7 +91,8 @@ function clearWorkspace() {
         return;
     }
 
-    localStorage.removeItem(WORKSPACE_STORAGE_KEY);
+    const key = getWorkspaceStorageKey();
+    if (key) localStorage.removeItem(key);
 
     appState.sessionId = null;
     appState.cvData = null;
@@ -107,6 +137,8 @@ function clearWorkspace() {
 // Reconstruit la carte mentale (nœuds + connexions) à partir de l'état sauvegardé,
 // pour que l'analyse de CV soit toujours là après un rechargement de page.
 function restoreWorkspaceState() {
+    migrateLegacyWorkspaceState();
+
     const saved = loadWorkspaceState();
     if (!saved || !saved.cvData) return;
 

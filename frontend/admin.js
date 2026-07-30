@@ -59,9 +59,11 @@ function statusClassGoodLow(x, warnAbove, badAbove) {
     return 'good';
 }
 
-function tile(label, value, cls = 'accent', meta = '') {
+function tile(label, value, cls = 'accent', meta = '', opts = {}) {
+    const clickableClass = opts.clickable ? ' clickable' : '';
+    const idAttr = opts.id ? ` id="${opts.id}"` : '';
     return `
-        <div class="kpi-tile">
+        <div class="kpi-tile${clickableClass}"${idAttr}>
             <div class="kpi-tile-label">${escHtml(label)}</div>
             <div class="kpi-tile-value ${cls}">${escHtml(value)}</div>
             ${meta ? `<div class="kpi-tile-meta">${escHtml(meta)}</div>` : ''}
@@ -72,7 +74,7 @@ function tile(label, value, cls = 'accent', meta = '') {
 function renderProduct(p) {
     el('productSubtitle').textContent = `"Actif" = a créé une session CV ou un entretien dans les ${p.active_window_days} derniers jours.`;
     el('productGrid').innerHTML = [
-        tile('Registered users', fmtNum(p.registered_users)),
+        tile('Registered users', fmtNum(p.registered_users), 'accent', 'Voir le détail →', { id: 'registeredUsersTile', clickable: true }),
         tile('Active users', fmtNum(p.active_users)),
         tile('Interviews started', fmtNum(p.interviews_started)),
         tile('Interviews completed', fmtNum(p.interviews_completed)),
@@ -216,8 +218,93 @@ async function loadKpis(opts = {}) {
     }
 }
 
+function renderCreditStepper(userId, kind, value) {
+    const zeroClass = value <= 0 ? ' zero' : '';
+    return `
+        <div class="credit-stepper${zeroClass}" data-user="${userId}" data-kind="${kind}">
+            <button type="button" class="credit-minus" ${value <= 0 ? 'disabled' : ''}>−</button>
+            <span class="credit-value">${value}</span>
+            <button type="button" class="credit-plus">+</button>
+        </div>
+    `;
+}
+
+function renderUsersTable(users) {
+    el('usersTableBody').innerHTML = users.map((u) => `
+        <tr>
+            <td>${escHtml(u.email)}${u.is_admin ? '<span class="admin-badge">admin</span>' : ''}</td>
+            <td>${escHtml((u.created_at || '').slice(0, 10))}</td>
+            <td>${u.nb_sessions}</td>
+            <td>${u.nb_interviews}</td>
+            <td>${renderCreditStepper(u.id, 'interview_credits', u.interview_credits)}</td>
+            <td>${renderCreditStepper(u.id, 'coach_credits', u.coach_credits)}</td>
+        </tr>
+    `).join('');
+
+    el('usersTableBody').querySelectorAll('.credit-stepper').forEach((stepper) => {
+        const userId = stepper.dataset.user;
+        const kind = stepper.dataset.kind;
+        stepper.querySelector('.credit-minus').addEventListener('click', () => adjustCredit(userId, kind, stepper, -1));
+        stepper.querySelector('.credit-plus').addEventListener('click', () => adjustCredit(userId, kind, stepper, 1));
+    });
+}
+
+async function adjustCredit(userId, kind, stepperEl, delta) {
+    const admin = getCurrentUser();
+    const currentValue = parseInt(stepperEl.querySelector('.credit-value').textContent, 10);
+    const newValue = Math.max(0, currentValue + delta);
+
+    stepperEl.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/admin/users/${userId}/credits`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: admin.id, [kind]: newValue }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Erreur');
+
+        const updated = data[kind];
+        stepperEl.querySelector('.credit-value').textContent = updated;
+        stepperEl.classList.toggle('zero', updated <= 0);
+        stepperEl.querySelector('.credit-minus').disabled = updated <= 0;
+    } catch (error) {
+        alert(error.message);
+    } finally {
+        stepperEl.querySelectorAll('button').forEach((b) => { b.disabled = false; });
+        stepperEl.querySelector('.credit-minus').disabled = parseInt(stepperEl.querySelector('.credit-value').textContent, 10) <= 0;
+    }
+}
+
+async function openUsersModal() {
+    const admin = getCurrentUser();
+    el('usersModalBackdrop').classList.remove('hidden');
+    el('usersTableBody').innerHTML = '<tr><td colspan="6">Chargement...</td></tr>';
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/admin/users?user_id=${encodeURIComponent(admin.id)}`);
+        const users = await response.json();
+        if (!response.ok) throw new Error(users.error || 'Erreur');
+        renderUsersTable(users);
+    } catch (error) {
+        el('usersTableBody').innerHTML = `<tr><td colspan="6">⚠️ ${escHtml(error.message)}</td></tr>`;
+    }
+}
+
+function closeUsersModal() {
+    el('usersModalBackdrop').classList.add('hidden');
+}
+
 function initAdminPage() {
     el('refreshBtn').addEventListener('click', () => loadKpis());
+    el('closeUsersModal').addEventListener('click', closeUsersModal);
+    el('usersModalBackdrop').addEventListener('click', (e) => {
+        if (e.target === el('usersModalBackdrop')) closeUsersModal();
+    });
+    document.addEventListener('click', (e) => {
+        if (e.target.closest('#registeredUsersTile')) openUsersModal();
+    });
     loadKpis();
 }
 
