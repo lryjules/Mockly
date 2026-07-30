@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mockly — Fonctionnalités étudiants</title>
+    <meta name="description" content="Tout ce que Mockly met à disposition des étudiants pour préparer leurs entretiens d'embauche.">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .showcase-hero {
+            text-align: center;
+            max-width: 640px;
+            margin: 0 auto 2rem;
+        }
+        .showcase-hero .eyebrow { justify-content: center; display: flex; }
+        .showcase-hero h1 {
+            font-size: 2rem;
+            color: var(--vscode-text-bright);
+            margin-bottom: 0.8rem;
+            line-height: 1.25;
+        }
+        .showcase-hero p {
+            color: var(--vscode-text);
+            font-size: 1rem;
+            line-height: 1.7;
+        }
+
+        .showcase-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .showcase-item {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 1.3rem;
+            align-items: start;
+        }
+
+        .showcase-item.reverse {
+            grid-template-columns: 1fr auto;
+        }
+        .showcase-item.reverse .showcase-icon { order: 2; }
+        .showcase-item.reverse .showcase-text { order: 1; }
+
+        .showcase-icon {
+            width: 64px;
+            height: 64px;
+            flex-shrink: 0;
+            border-radius: 16px;
+            background: rgba(86, 156, 214, 0.14);
+            border: 1px solid var(--vscode-border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.9rem;
+        }
+
+        .showcase-text h2 {
+            font-size: 1.2rem;
+            color: var(--vscode-text-bright);
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .showcase-tag {
+            font-size: 0.68rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--vscode-blue);
+            border: 1px solid rgba(86, 156, 214, 0.4);
+            border-radius: 999px;
+            padding: 0.15rem 0.6rem;
+        }
+
+        .showcase-text > p {
+            color: var(--vscode-text);
+            line-height: 1.7;
+            font-size: 0.95rem;
+            margin-bottom: 0.8rem;
+        }
+
+        .showcase-highlights {
+            display: flex;
+            flex-direction: column;
+            gap: 0.45rem;
+            margin-bottom: 0.9rem;
+            padding-left: 0;
+            list-style: none;
+        }
+        .showcase-highlights li {
+            font-size: 0.88rem;
+            color: var(--vscode-text);
+            line-height: 1.55;
+            display: flex;
+            gap: 0.5rem;
+        }
+        .showcase-highlights li::before {
+            content: '✓';
+            color: var(--vscode-green);
+            flex-shrink: 0;
+            font-weight: 700;
+        }
+
+        .credits-note {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            flex-wrap: wrap;
+        }
+        .credits-note .feature-icon { margin-bottom: 0; flex-shrink: 0; }
+
+        @media (max-width: 640px) {
+            .showcase-item,
+            .showcase-item.reverse {
+                grid-template-columns: 1fr;
+            }
+            .showcase-item.reverse .showcase-icon,
+            .showcase-item.reverse .showcase-text {
+                order: initial;
+            }
+            .showcase-icon { margin-bottom: 0.4rem; }
+        }
+    </style>
+</head>
+
+<body class="landing-page">
+    <div class="landing-shell">
+        <header class="topbar">
+            <a href="index.html" class="brand">Mockly</a>
+            <nav class="topnav">
+                <a href="index.html#benefits">Produit</a>
+                <a href="features.html">Fonctionnalités</a>
+                <a href="index.html#audience">Clients</a>
+                <a href="index.html#contact">Contact</a>
+            </nav>
+            <a href="auth.html" class="primary-btn small-btn">Créer mon compte</a>
+        </header>
+
+        <main class="landing-content">
+            <section class="showcase-hero">
+                <p class="eyebrow">Mockly • Fonctionnalités étudiants</p>
+                <h1>Tout ce dont un étudiant a besoin pour arriver confiant en entretien.</h1>
+                <p>Cinq outils, un seul compte : du dépôt de CV jusqu'à l'entretien audio noté par l'IA, en passant par le suivi de ta progression réelle.</p>
+            </section>
+
+            <div class="showcase-list">
+                <section class="section-card showcase-item">
+                    <div class="showcase-icon">🐼</div>
+                    <div class="showcase-text">
+                        <h2>Coach IA <span class="showcase-tag">Carte mentale</span></h2>
+                        <p>Dépose ton CV (PDF ou DOCX) : Mockly l'analyse et construit autour une carte mentale interactive avec tes conseils, secteurs pertinents, compétences clés et questions de préparation.</p>
+                        <ul class="showcase-highlights">
+                            <li>Génère des questions ciblées à partir d'un secteur, d'une entreprise et d'un poste</li>
+                            <li>Chat avec un coach IA pour poser tes questions librement</li>
+                            <li>Réponds directement sur une carte et reçois un score, des points forts, des axes d'amélioration et un exemple de réponse améliorée</li>
+                            <li>Cartes déplaçables et redimensionnables, ton espace de travail est sauvegardé automatiquement</li>
+                        </ul>
+                        <a href="workspace.html" class="secondary-btn small-btn">Ouvrir le Coach →</a>
+                    </div>
+                </section>
+
+                <section class="section-card showcase-item reverse">
+                    <div class="showcase-icon">🎙️</div>
+                    <div class="showcase-text">
+                        <h2>Entretien audio <span class="showcase-tag">Simulation vocale</span></h2>
+                        <p>Colle une fiche de poste : l'IA identifie les compétences clés à évaluer et mène un entretien 100% oral — les questions sont posées à voix haute, tu réponds au micro.</p>
+                        <ul class="showcase-highlights">
+                            <li>Enchaînement fluide : la question suivante est déjà prête pendant que tu réponds</li>
+                            <li>Estimation de ta préparation avant même de démarrer, basée sur tes entretiens précédents</li>
+                            <li>Rapport écrit à la fin : score global, résumé, points forts, axes d'amélioration et détail par compétence</li>
+                        </ul>
+                        <a href="/interview" class="secondary-btn small-btn">Démarrer un entretien →</a>
+                    </div>
+                </section>
+
+                <section class="section-card showcase-item">
+                    <div class="showcase-icon">📈</div>
+                    <div class="showcase-text">
+                        <h2>Ma progression <span class="showcase-tag">Suivi de compétences</span></h2>
+                        <p>Un arbre de compétences se construit automatiquement à partir de tes CV, de tes entretiens audio et de tes échanges avec le coach.</p>
+                        <ul class="showcase-highlights">
+                            <li>Compétences confirmées (avec un score réel) séparées de celles juste mentionnées sur ton CV mais jamais testées</li>
+                            <li>Regroupées par catégorie : technique, métier, soft skills</li>
+                            <li>S'améliore à chaque nouvel entretien ou échange avec le coach</li>
+                        </ul>
+                        <a href="/profile" class="secondary-btn small-btn">Voir ma progression →</a>
+                    </div>
+                </section>
+
+                <section class="section-card showcase-item reverse">
+                    <div class="showcase-icon">📊</div>
+                    <div class="showcase-text">
+                        <h2>Historique <span class="showcase-tag">Toutes tes sessions</span></h2>
+                        <p>Retrouve l'intégralité de tes sessions passées : CV analysés, cartes mentales générées, conversations avec le coach et évaluations reçues.</p>
+                        <ul class="showcase-highlights">
+                            <li>Détail complet par session, organisé en onglets (CV & analyse, évaluations, générations, chat)</li>
+                            <li>Visible uniquement par toi — ton historique n'est jamais partagé entre comptes</li>
+                        </ul>
+                        <a href="/results" class="secondary-btn small-btn">Consulter l'historique →</a>
+                    </div>
+                </section>
+
+                <section class="section-card showcase-item">
+                    <div class="showcase-icon">⚙️</div>
+                    <div class="showcase-text">
+                        <h2>Configuration <span class="showcase-tag">Profil personnel</span></h2>
+                        <p>Renseigne ton niveau d'étude, le domaine que tu vises et ton objectif actuel : ces informations personnalisent tes prochaines sessions de préparation.</p>
+                        <a href="/configuration" class="secondary-btn small-btn">Modifier mes informations →</a>
+                    </div>
+                </section>
+
+                <section class="section-card credits-note">
+                    <div class="feature-icon">🎟️</div>
+                    <p style="margin:0">
+                        <strong>Crédits Coach &amp; Interview</strong> — chaque compte dispose d'un nombre de crédits pour utiliser l'IA (un dépôt de CV = 1 crédit Coach, un entretien démarré = 1 crédit Interview). Besoin de plus de crédits ? Contacte l'administrateur de ton établissement.
+                    </p>
+                </section>
+            </div>
+        </main>
+
+        <footer class="footer-bar" id="contact">
+            <div>© 2026 Mockly</div>
+            <div class="footer-links">
+                <a href="index.html#benefits">Produit</a>
+                <a href="features.html">Fonctionnalités</a>
+                <a href="index.html#audience">Clients</a>
+                <a href="auth.html">Workspace</a>
+            </div>
+        </footer>
+    </div>
+</body>
+
+</html>

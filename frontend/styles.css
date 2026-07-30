@@ -977,6 +977,7 @@ body {
 }
 
 .hero-card {
+    position: relative;
     display: grid;
     grid-template-columns: 1.6fr 0.9fr;
     gap: 1.2rem;
@@ -985,6 +986,22 @@ body {
     border-radius: 16px;
     padding: 2rem;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    overflow: hidden;
+}
+
+.hero-glow {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.hero-content,
+.hero-side {
+    position: relative;
+    z-index: 1;
 }
 
 .eyebrow {
@@ -996,14 +1013,22 @@ body {
 }
 
 .hero-card h1 {
-    font-size: 2.2rem;
+    font-size: 2.4rem;
     line-height: 1.2;
     color: var(--vscode-text-bright);
     margin-bottom: 0.8rem;
+    letter-spacing: -0.01em;
+}
+
+.hero-card h1 .gradient-text {
+    background: linear-gradient(120deg, var(--vscode-blue), var(--vscode-cyan));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
 }
 
 .hero-text {
-    font-size: 1rem;
+    font-size: 1.05rem;
     line-height: 1.7;
     color: var(--vscode-text);
     max-width: 700px;
@@ -1014,6 +1039,25 @@ body {
     gap: 0.8rem;
     margin-top: 1.2rem;
     flex-wrap: wrap;
+}
+
+.trust-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-top: 1.5rem;
+}
+
+.trust-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--vscode-border);
+    border-radius: 999px;
+    padding: 0.4rem 0.85rem;
+    font-size: 0.8rem;
+    color: var(--vscode-text-muted);
 }
 
 .primary-btn,
@@ -1099,7 +1143,26 @@ body {
     background: rgba(45, 45, 48, 0.7);
     border: 1px solid var(--vscode-border);
     border-radius: 10px;
-    padding: 1rem;
+    padding: 1.2rem 1rem;
+    transition: var(--transition);
+}
+
+.feature-card:hover {
+    border-color: var(--vscode-blue);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+}
+
+.feature-icon {
+    font-size: 1.6rem;
+    margin-bottom: 0.6rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: rgba(86, 156, 214, 0.14);
 }
 
 .feature-card h3 {
