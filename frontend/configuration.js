@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://mockly-avje.onrender.com//api';
+const API_BASE_URL = '/api';
 
 function getCurrentUser() {
     const stored = localStorage.getItem('mocklyUser');

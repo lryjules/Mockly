@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://mockly-avje.onrender.com//api';
+const API_BASE_URL = '/api';
 
 const state = {
     interviewId: null,
@@ -242,6 +242,57 @@ function renderReport(evaluation) {
     `).join('');
 }
 
+async function checkReadiness() {
+    const jobDescription = el('jobDescriptionInput').value.trim();
+    const errorBox = el('jobFormError');
+    const resultBox = el('readinessResult');
+    errorBox.textContent = '';
+
+    if (!jobDescription) {
+        errorBox.textContent = 'Colle une fiche de poste pour estimer ta préparation.';
+        return;
+    }
+
+    const user = getCurrentUser();
+    if (!user) {
+        resultBox.classList.remove('hidden');
+        resultBox.innerHTML = `Connecte-toi pour estimer ta préparation à partir de tes précédents entretiens. <a href="auth.html">Se connecter</a>`;
+        return;
+    }
+
+    const btn = el('readinessCheckBtn');
+    btn.disabled = true;
+    btn.textContent = 'Analyse en cours...';
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/profile/readiness-check`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: user.id, job_description: jobDescription }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Impossible d'estimer ta préparation");
+
+        const pct = Math.round(data.readiness_score || 0);
+        const coveragePct = Math.round((data.coverage || 0) * 100);
+        resultBox.classList.remove('hidden');
+        resultBox.innerHTML = `
+            <div class="readiness-score-row">
+                <span class="readiness-score-value">${pct}%</span>
+                <span class="readiness-coverage">de préparation estimée pour « ${escHtml(data.job_title)} » — ${coveragePct}% des compétences déjà testées par tes précédents entretiens</span>
+            </div>
+            <div class="readiness-competencies">
+                ${(data.competencies || []).map((c) => `<span class="readiness-chip">${escHtml(c.name)}</span>`).join('')}
+            </div>
+        `;
+    } catch (error) {
+        errorBox.textContent = error.message;
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🔍 Estimer ma préparation';
+    }
+}
+
 function resetToSetup() {
     state.interviewId = null;
     state.turnIndex = null;
@@ -250,6 +301,7 @@ function resetToSetup() {
 
     el('jobDescriptionInput').value = '';
     el('jobFormError').textContent = '';
+    el('readinessResult').classList.add('hidden');
     el('reportScreen').classList.add('hidden');
     el('jobForm').classList.remove('hidden');
 }
@@ -261,6 +313,7 @@ function escHtml(str) {
 
 function initInterviewPage() {
     el('jobForm').addEventListener('submit', startInterview);
+    el('readinessCheckBtn').addEventListener('click', checkReadiness);
     el('micBtn').addEventListener('click', () => {
         if (state.isRecording) {
             stopRecording();

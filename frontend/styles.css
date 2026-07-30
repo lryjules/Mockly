@@ -72,6 +72,28 @@ body {
 .sidebar-header {
     padding: 1rem;
     border-bottom: 1px solid var(--vscode-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.clear-workspace-btn {
+    background: none;
+    border: 1px solid var(--vscode-border);
+    color: var(--vscode-text-muted);
+    border-radius: 4px;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: var(--transition);
+    flex-shrink: 0;
+}
+
+.clear-workspace-btn:hover {
+    border-color: #ff4444;
+    color: #ff6b6b;
+    background: rgba(255, 68, 68, 0.08);
 }
 
 .sidebar-title {

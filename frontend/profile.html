@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mockly — Ma progression</title>
+  <meta name="description" content="Ton arbre de compétences : ce que Mockly a appris de toi au fil des entretiens.">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    html, body { overflow: auto; height: auto; }
+
+    .profile-layout {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 2rem 1.2rem 3rem;
+    }
+
+    .profile-header { margin-bottom: 1.5rem; }
+    .profile-header h1 { font-size: 1.3rem; color: var(--vscode-text-bright); margin-bottom: 0.4rem; }
+    .profile-header p { color: var(--vscode-text-muted); font-size: 0.9rem; line-height: 1.6; }
+
+    .profile-locked,
+    .profile-empty {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: var(--vscode-text-muted);
+      background: var(--vscode-sidebar);
+      border: 1px solid var(--vscode-border);
+      border-radius: 14px;
+    }
+    .profile-locked a, .profile-empty a { color: var(--vscode-blue); }
+    .profile-empty-icon { font-size: 2.2rem; margin-bottom: 0.6rem; }
+
+    .profile-category { margin-bottom: 1.5rem; }
+    .profile-category-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--vscode-text-bright);
+      margin-bottom: 0.7rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .competency-row {
+      background: var(--vscode-sidebar);
+      border: 1px solid var(--vscode-border);
+      border-radius: 10px;
+      padding: 0.75rem 0.9rem;
+      margin-bottom: 0.5rem;
+    }
+    .competency-row.unconfirmed { opacity: 0.55; }
+
+    .competency-row-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 0.6rem;
+      margin-bottom: 0.4rem;
+    }
+    .competency-name { font-size: 0.88rem; font-weight: 600; color: var(--vscode-text-bright); }
+    .competency-score-label { font-size: 0.8rem; color: var(--vscode-blue); font-weight: 700; flex-shrink: 0; }
+    .competency-row.unconfirmed .competency-score-label { color: var(--vscode-text-muted); font-weight: 500; }
+
+    .competency-bar-track {
+      height: 6px;
+      background: var(--vscode-line);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .competency-bar-fill {
+      height: 100%;
+      background: var(--vscode-blue);
+      border-radius: 999px;
+      transition: width 0.3s ease;
+    }
+    .competency-row.unconfirmed .competency-bar-fill {
+      background: repeating-linear-gradient(
+        45deg, var(--vscode-border), var(--vscode-border) 4px, transparent 4px, transparent 8px
+      );
+    }
+
+    .competency-meta { font-size: 0.72rem; color: var(--vscode-text-muted); margin-top: 0.3rem; }
+  </style>
+</head>
+<body>
+  <nav class="app-nav">
+    <a href="workspace.html">📄 Coach</a>
+    <a href="/interview">🎙️ Interview</a>
+    <a href="/profile" class="active">📈 Ma progression</a>
+    <a href="/results">📊 Historique</a>
+    <a href="/configuration">⚙️ Configuration</a>
+    <div class="nav-right">
+      <a href="auth.html" onclick="localStorage.removeItem('mocklyUser')">↪ Déconnexion</a>
+    </div>
+  </nav>
+
+  <div class="profile-layout">
+    <div class="profile-header">
+      <h1>📈 Ma progression</h1>
+      <p>L'arbre de compétences que Mockly a construit à partir de tes CV, de tes entretiens audio et de tes échanges avec le Coach. Les branches grisées sont mentionnées mais pas encore évaluées.</p>
+    </div>
+
+    <div id="profileLocked" class="profile-locked hidden">
+      Connecte-toi pour voir ta progression. <a href="auth.html">Se connecter</a>
+    </div>
+
+    <div id="profileEmpty" class="profile-empty hidden">
+      <div class="profile-empty-icon">🌱</div>
+      Ton arbre de compétences est encore vide.<br>
+      Dépose un CV ou passe un <a href="/interview">entretien audio</a> pour commencer.
+    </div>
+
+    <div id="profileTree"></div>
+  </div>
+
+  <script src="profile.js"></script>
+</body>
+</html>

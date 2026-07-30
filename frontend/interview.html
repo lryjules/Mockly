@@ -36,6 +36,28 @@
 
     .interview-error { color: #ff6b6b; font-size: 0.85rem; margin-top: 0.6rem; min-height: 1.2rem; }
 
+    .job-form-actions { display: flex; gap: 0.6rem; margin-top: 0.8rem; }
+    .job-form-actions .primary-btn, .job-form-actions .secondary-btn { flex: 1; }
+
+    .readiness-result {
+      margin-top: 1rem;
+      padding: 0.9rem 1rem;
+      background: var(--vscode-line);
+      border: 1px solid var(--vscode-border);
+      border-radius: 10px;
+    }
+    .readiness-score-row { display: flex; align-items: baseline; gap: 0.8rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
+    .readiness-score-value { font-size: 1.4rem; font-weight: 700; color: var(--vscode-blue); }
+    .readiness-coverage { font-size: 0.78rem; color: var(--vscode-text-muted); }
+    .readiness-competencies { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+    .readiness-chip {
+      font-size: 0.72rem;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      border: 1px solid var(--vscode-border);
+      color: var(--vscode-text-muted);
+    }
+
     .interview-progress {
       display: flex;
       align-items: center;
@@ -155,6 +177,7 @@
   <nav class="app-nav">
     <a href="workspace.html">📄 Coach</a>
     <a href="/interview" class="active">🎙️ Interview</a>
+    <a href="/profile">📈 Ma progression</a>
     <a href="/results">📊 Historique</a>
     <a href="/configuration">⚙️ Configuration</a>
     <div class="nav-right">
@@ -171,7 +194,11 @@
     <form id="jobForm" class="section-card job-form">
       <label for="jobDescriptionInput">Fiche de poste</label>
       <textarea id="jobDescriptionInput" placeholder="Colle ici l'intitulé et la description du poste..."></textarea>
-      <button id="startInterviewBtn" type="submit" class="primary-btn full-width" style="margin-top:0.8rem">🎙️ Démarrer l'entretien</button>
+      <div class="job-form-actions">
+        <button id="readinessCheckBtn" type="button" class="secondary-btn">🔍 Estimer ma préparation</button>
+        <button id="startInterviewBtn" type="submit" class="primary-btn">🎙️ Démarrer l'entretien</button>
+      </div>
+      <div id="readinessResult" class="readiness-result hidden"></div>
       <p id="jobFormError" class="interview-error"></p>
     </form>
 

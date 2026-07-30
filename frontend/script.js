@@ -1,5 +1,5 @@
 // API Configuration
-const API_BASE_URL = 'http://mockly-avje.onrender.com//api';
+const API_BASE_URL = '/api';
 
 function getCurrentUser() {
     const stored = localStorage.getItem('mocklyUser');
@@ -25,10 +25,131 @@ let appState = {
     activeNode: null
 };
 
+const WORKSPACE_STORAGE_KEY = 'mocklyWorkspaceState';
+
+// Persiste l'essentiel de l'état (tout ce qui est nécessaire pour reconstruire
+// la carte mentale) pour que l'analyse de CV survive à un changement d'onglet
+// ou un rechargement de page.
+function saveWorkspaceState() {
+    const toSave = {
+        sessionId: appState.sessionId,
+        cvData: appState.cvData,
+        analysisData: appState.analysisData,
+        nodes: appState.nodes,
+        connections: appState.connections,
+        canvasOffset: appState.canvasOffset,
+        canvasScale: appState.canvasScale,
+    };
+    try {
+        localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify(toSave));
+    } catch (error) {
+        console.warn('Impossible de sauvegarder l\'espace de travail :', error);
+    }
+}
+
+function loadWorkspaceState() {
+    const stored = localStorage.getItem(WORKSPACE_STORAGE_KEY);
+    if (!stored) return null;
+    try {
+        return JSON.parse(stored);
+    } catch (error) {
+        return null;
+    }
+}
+
+function clearWorkspace() {
+    if (!confirm('Vider l\'espace de travail ? Le CV analysé, la carte mentale et tes réponses seront supprimés (uniquement de cet écran, pas de ton historique).')) {
+        return;
+    }
+
+    localStorage.removeItem(WORKSPACE_STORAGE_KEY);
+
+    appState.sessionId = null;
+    appState.cvData = null;
+    appState.analysisData = null;
+    appState.nodes = [];
+    appState.connections = [];
+    appState.canvasOffset = { x: 0, y: 0 };
+    appState.canvasScale = 1;
+
+    document.getElementById('canvas').innerHTML = '';
+    document.getElementById('connectionsSvg').innerHTML = '';
+    updateCanvasTransform();
+    updateZoomIndicator();
+
+    document.getElementById('infoSection').classList.add('hidden');
+    document.getElementById('contextSection').classList.add('hidden');
+    document.getElementById('sectorInput').value = '';
+    document.getElementById('companyInput').value = '';
+    document.getElementById('roleInput').value = '';
+
+    const generateBtn = document.getElementById('generateBtn');
+    generateBtn.disabled = false;
+    generateBtn.innerHTML = 'Générer la carte mentale';
+
+    document.getElementById('uploadZone').innerHTML = `
+        <div class="upload-icon">📄</div>
+        <div class="upload-text">Glissez votre CV ici</div>
+        <div class="upload-hint">PDF ou DOCX</div>
+    `;
+    document.getElementById('cvFile').value = '';
+
+    document.getElementById('chatPanel').classList.remove('open');
+    document.getElementById('chatMessages').innerHTML = `
+        <div style="text-align: center; padding: 2rem; color: var(--vscode-text-muted); font-size: 0.875rem;">
+            Cliquez sur un nœud "Coach" pour démarrer la conversation
+        </div>
+    `;
+    document.getElementById('chatInput').disabled = true;
+    document.getElementById('chatSend').disabled = true;
+}
+
+// Reconstruit la carte mentale (nœuds + connexions) à partir de l'état sauvegardé,
+// pour que l'analyse de CV soit toujours là après un rechargement de page.
+function restoreWorkspaceState() {
+    const saved = loadWorkspaceState();
+    if (!saved || !saved.cvData) return;
+
+    appState.sessionId = saved.sessionId;
+    appState.cvData = saved.cvData;
+    appState.analysisData = saved.analysisData;
+    appState.nodes = [];
+    appState.connections = saved.connections || [];
+    appState.canvasOffset = saved.canvasOffset || { x: 0, y: 0 };
+    appState.canvasScale = saved.canvasScale || 1;
+
+    document.getElementById('cvInfo').innerHTML = `
+        <div><strong>Nom:</strong> ${saved.cvData.nom || 'Non trouvé'}</div>
+        <div><strong>Email:</strong> ${saved.cvData.email || 'Non trouvé'}</div>
+        <div><strong>Compétences:</strong> ${saved.cvData.competences?.slice(0, 3).join(', ') || 'Aucune'}</div>
+    `;
+    document.getElementById('infoSection').classList.remove('hidden');
+    document.getElementById('contextSection').classList.remove('hidden');
+    document.getElementById('uploadZone').innerHTML = `
+        <div class="upload-icon">✅</div>
+        <div class="upload-text">CV analysé avec succès</div>
+        <div class="upload-hint">Cliquez pour changer</div>
+    `;
+
+    (saved.nodes || []).forEach((node) => {
+        appState.nodes.push(node);
+        if (node.type === 'response') {
+            renderResponseNode(node);
+        } else {
+            renderNode(node);
+        }
+    });
+
+    updateCanvasTransform();
+    updateZoomIndicator();
+    drawConnections();
+}
+
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
     initializeCanvas();
+    restoreWorkspaceState();
 });
 
 function setupEventListeners() {
@@ -81,6 +202,9 @@ function setupEventListeners() {
             sendChatMessage();
         }
     });
+
+    // Clear workspace
+    document.getElementById('clearWorkspaceBtn').addEventListener('click', clearWorkspace);
 }
 
 function initializeCanvas() {
@@ -112,6 +236,7 @@ function initializeCanvas() {
         if (isDragging) {
             isDragging = false;
             canvasContainer.style.cursor = 'grab';
+            if (appState.cvData) saveWorkspaceState();
         }
     });
 
@@ -202,6 +327,8 @@ async function handleFileUpload(e) {
 
         // Créer les nuages d'analyse autour du CV
         createInitialClouds();
+
+        saveWorkspaceState();
 
     } catch (error) {
         uploadZone.innerHTML = `
@@ -335,6 +462,7 @@ async function generateMindMap() {
 
         // Create child nodes
         createChildNodes(topics, sector, company, role);
+        saveWorkspaceState();
 
         btn.innerHTML = 'Carte générée ✅';
 
@@ -510,6 +638,7 @@ function makeNodeDraggable(nodeEl, node) {
             isDragging = false;
             nodeEl.style.cursor = 'pointer';
             nodeEl.style.zIndex = '10';
+            saveWorkspaceState();
         }
     });
 }
@@ -580,6 +709,7 @@ function deleteNode(nodeId) {
 
     // Redessiner les connexions
     drawConnections();
+    saveWorkspaceState();
 }
 
 async function openChat(node) {
@@ -665,6 +795,7 @@ function zoomIn() {
     appState.canvasScale = newScale;
     updateCanvasTransform();
     updateZoomIndicator();
+    if (appState.cvData) saveWorkspaceState();
 }
 
 function zoomOut() {
@@ -672,6 +803,7 @@ function zoomOut() {
     appState.canvasScale = newScale;
     updateCanvasTransform();
     updateZoomIndicator();
+    if (appState.cvData) saveWorkspaceState();
 }
 
 function resetView() {
@@ -679,6 +811,7 @@ function resetView() {
     appState.canvasScale = 1;
     updateCanvasTransform();
     updateZoomIndicator();
+    if (appState.cvData) saveWorkspaceState();
 }
 
 function fitView() {
@@ -716,6 +849,7 @@ function fitView() {
 
     updateCanvasTransform();
     updateZoomIndicator();
+    saveWorkspaceState();
 }
 
 function updateCanvasTransform() {
@@ -753,34 +887,60 @@ function createResponseNode(questionText, parentNode) {
         y: parentNode.y + (responseNodeCounter * 50),
         parent: parentNode.id,
         questionText: questionText,
-        interactive: false
+        interactive: false,
+        userResponse: null,
+        evaluation: null
     };
 
     appState.nodes.push(responseNode);
+    appState.connections.push({ from: parentNode.id, to: responseId });
 
-    // Créer l'élément DOM du nuage de réponse
+    const nodeEl = renderResponseNode(responseNode);
+    drawConnections();
+    saveWorkspaceState();
+
+    // Focus sur le textarea (nouveau nœud = toujours en attente de réponse)
+    const textarea = nodeEl.querySelector('.response-textarea');
+    if (textarea) setTimeout(() => textarea.focus(), 100);
+}
+
+// Construit et insère l'élément DOM d'un nœud "réponse", que ce soit à la
+// création (en attente de réponse) ou à la restauration depuis l'état
+// sauvegardé (où l'évaluation peut déjà exister).
+function renderResponseNode(node) {
     const canvas = document.getElementById('canvas');
     const nodeEl = document.createElement('div');
     nodeEl.className = 'node response-node';
-    nodeEl.id = `node-${responseId}`;
-    nodeEl.style.left = responseNode.x + 'px';
-    nodeEl.style.top = responseNode.y + 'px';
+    nodeEl.id = `node-${node.id}`;
+    nodeEl.style.left = node.x + 'px';
+    nodeEl.style.top = node.y + 'px';
+    canvas.appendChild(nodeEl);
 
+    if (node.evaluation) {
+        renderEvaluationContent(node, nodeEl);
+    } else {
+        renderPendingResponseContent(node, nodeEl);
+    }
+
+    makeNodeDraggable(nodeEl, node);
+    return nodeEl;
+}
+
+function renderPendingResponseContent(node, nodeEl) {
     nodeEl.innerHTML = `
         <div class="node-header">
             <div class="node-icon response">📝</div>
             <div class="node-title">Votre Réponse</div>
         </div>
         <div class="node-content" style="font-size: 0.7rem; color: var(--vscode-text-muted); margin-bottom: 0.5rem;">
-            ${escapeHtml(questionText)}
+            ${escapeHtml(node.questionText)}
         </div>
         <div class="response-input-area">
-            <textarea class="response-textarea" placeholder="Tapez votre réponse ici..."></textarea>
+            <textarea class="response-textarea" placeholder="Tapez votre réponse ici...">${escapeHtml(node.userResponse || '')}</textarea>
             <button class="response-submit">Valider</button>
         </div>
     `;
 
-    // Event listener sur le bouton de soumission
     const submitBtn = nodeEl.querySelector('.response-submit');
     const textarea = nodeEl.querySelector('.response-textarea');
 
@@ -791,23 +951,11 @@ function createResponseNode(questionText, parentNode) {
             return;
         }
 
-        await submitResponse(responseNode, questionText, userResponse, nodeEl);
+        await submitResponse(node, userResponse, nodeEl);
     });
-
-    // Drag & drop
-    makeNodeDraggable(nodeEl, responseNode);
-
-    canvas.appendChild(nodeEl);
-
-    // Ajouter connexion
-    appState.connections.push({ from: parentNode.id, to: responseId });
-    drawConnections();
-
-    // Focus sur le textarea
-    setTimeout(() => textarea.focus(), 100);
 }
 
-async function submitResponse(responseNode, questionText, userResponse, nodeEl) {
+async function submitResponse(responseNode, userResponse, nodeEl) {
     const submitBtn = nodeEl.querySelector('.response-submit');
     const textarea = nodeEl.querySelector('.response-textarea');
 
@@ -822,7 +970,7 @@ async function submitResponse(responseNode, questionText, userResponse, nodeEl) 
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 session_id: appState.sessionId,
-                question: questionText,
+                question: responseNode.questionText,
                 response: userResponse
             })
         });
@@ -833,8 +981,13 @@ async function submitResponse(responseNode, questionText, userResponse, nodeEl) 
 
         const evaluation = await response.json();
 
-        // Afficher l'évaluation
-        displayEvaluation(responseNode, evaluation, userResponse, nodeEl);
+        // Persister le résultat sur le nœud pour qu'il survive à un rechargement
+        responseNode.userResponse = userResponse;
+        responseNode.evaluation = evaluation;
+        saveWorkspaceState();
+
+        renderEvaluationContent(responseNode, nodeEl);
+        makeNodeDraggable(nodeEl, responseNode);
 
     } catch (error) {
         console.error('Erreur:', error);
@@ -845,7 +998,10 @@ async function submitResponse(responseNode, questionText, userResponse, nodeEl) 
     }
 }
 
-function displayEvaluation(responseNode, evaluation, userResponse, nodeEl) {
+function renderEvaluationContent(responseNode, nodeEl) {
+    const evaluation = responseNode.evaluation;
+    const userResponse = responseNode.userResponse || '';
+
     // Remplacer le contenu du nuage avec l'évaluation
     nodeEl.innerHTML = `
         <div class="node-header">
@@ -861,21 +1017,21 @@ function displayEvaluation(responseNode, evaluation, userResponse, nodeEl) {
         <div class="ai-evaluation">
             <div class="ai-evaluation-title">Score: ${evaluation.score}/10</div>
             <div style="margin-bottom: 0.5rem;">${escapeHtml(evaluation.evaluation)}</div>
-            
+
             <div style="margin-top: 0.5rem;">
                 <strong style="color: var(--vscode-green);">✓ Points forts:</strong>
                 <ul style="margin: 0.25rem 0; padding-left: 1.25rem; font-size: 0.7rem;">
                     ${evaluation.points_forts.map(p => `<li>${escapeHtml(p)}</li>`).join('')}
                 </ul>
             </div>
-            
+
             <div style="margin-top: 0.5rem;">
                 <strong style="color: var(--vscode-orange);">→ Améliorations:</strong>
                 <ul style="margin: 0.25rem 0; padding-left: 1.25rem; font-size: 0.7rem;">
                     ${evaluation.ameliorations.map(a => `<li>${escapeHtml(a)}</li>`).join('')}
                 </ul>
             </div>
-            
+
             ${evaluation.exemple_ameliore ? `
                 <div style="margin-top: 0.5rem;">
                     <strong style="color: var(--vscode-blue);">💡 Exemple amélioré:</strong>
@@ -885,7 +1041,7 @@ function displayEvaluation(responseNode, evaluation, userResponse, nodeEl) {
                 </div>
             ` : ''}
         </div>
-        
+
         ${evaluation.questions_suivantes && evaluation.questions_suivantes.length > 0 ? `
             <div class="suggested-questions">
                 <div class="suggested-questions-title">Questions de suivi:</div>
@@ -907,9 +1063,6 @@ function displayEvaluation(responseNode, evaluation, userResponse, nodeEl) {
             });
         });
     }
-
-    // Réactiver le drag & drop
-    makeNodeDraggable(nodeEl, responseNode);
 }
 
 
