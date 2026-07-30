@@ -46,9 +46,13 @@ app.register_blueprint(profile_bp)
 app.register_blueprint(sessions_bp)
 app.register_blueprint(pages_bp)  # toujours en dernier : contient la route catch-all "/<path:path>"
 
+# Doit s'exécuter à l'import du module, pas seulement sous __main__ : gunicorn
+# (utilisé en prod, ex. sur Render) importe `app` sans jamais passer par le
+# bloc __main__ ci-dessous, donc les tables ne seraient jamais créées sinon.
+init_db()
+
 
 if __name__ == "__main__":
-    init_db()
     key_status = "✅ configurée" if ai_gateway.GEMINI_API_KEY else "❌ non configurée (mode mock)"
     print(f"""
 ╔═══════════════════════════════════════════╗
