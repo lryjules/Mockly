@@ -106,6 +106,13 @@ async function routeSignedInUser() {
         return;
     }
 
+    if (me.user.is_admin) {
+        // Un compte admin plateforme n'appartient à aucune école : pas
+        // d'étape "choisis ton école" à lui imposer.
+        window.location.href = 'workspace.html';
+        return;
+    }
+
     if (!me.user.school_id) {
         // Compte fraîchement créé (ou jamais complété) : Clerk ne connaît pas
         // notre notion d'école, il faut la demander avant d'aller plus loin.
