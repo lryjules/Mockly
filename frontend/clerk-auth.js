@@ -66,11 +66,14 @@ function clerkReady() {
         const configRes = await fetch(`${MOCKLY_API_BASE_URL}/config`);
         const config = await configRes.json();
         if (!config.clerk_publishable_key) {
-            console.error('Clerk non configuré : CLERK_PUBLISHABLE_KEY manquant côté serveur.');
+            console.error('[MocklyAuth] Clerk non configuré : CLERK_PUBLISHABLE_KEY manquant côté serveur.');
             return null;
         }
         const Clerk = await _loadClerkScript(config.clerk_publishable_key);
         await Clerk.load({ appearance: MOCKLY_CLERK_APPEARANCE });
+        console.log('[MocklyAuth] Clerk.load() résolu — user:', Clerk.user ? Clerk.user.id : null,
+            '| session:', Clerk.session ? Clerk.session.id : null,
+            '| status session:', Clerk.session ? Clerk.session.status : 'n/a');
         return Clerk;
     })();
     return _clerkReadyPromise;
@@ -78,10 +81,16 @@ function clerkReady() {
 
 async function getToken() {
     const Clerk = await clerkReady();
-    if (!Clerk || !Clerk.session) return null;
+    if (!Clerk || !Clerk.session) {
+        console.log('[MocklyAuth] getToken() : pas de session Clerk active.');
+        return null;
+    }
     try {
-        return await Clerk.session.getToken();
+        const token = await Clerk.session.getToken();
+        console.log('[MocklyAuth] getToken() : token', token ? 'obtenu' : 'vide (null)');
+        return token;
     } catch (error) {
+        console.error('[MocklyAuth] getToken() a levé une erreur :', error);
         return null;
     }
 }

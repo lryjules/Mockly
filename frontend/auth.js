@@ -39,11 +39,16 @@ async function initAuthPage() {
         return;
     }
 
-    mountClerkWidgets(Clerk);
-
     if (Clerk.user) {
+        // Ne PAS monter SignUp/SignIn ici : Clerk refuse de les afficher pour
+        // un utilisateur déjà connecté (single-session) et se redirige alors
+        // lui-même vers son "Home URL" (la racine) — c'était la cause exacte
+        // du rebond vers la landing page. On gère nous-mêmes la suite.
         await routeSignedInUser();
+        return;
     }
+
+    mountClerkWidgets(Clerk);
 }
 
 function mountClerkWidgets(Clerk) {
