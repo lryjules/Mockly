@@ -2,19 +2,19 @@
 
 import json
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, jsonify, g
 
 from api.db import get_db
+from api.clerk_auth import require_auth
 
 sessions_bp = Blueprint("sessions", __name__)
 
 
 @sessions_bp.route("/api/sessions", methods=["GET"])
+@require_auth
 def list_sessions():
-    # L'historique est individuel à chaque compte : sans user_id, personne ne voit de session.
-    user_id = request.args.get("user_id")
-    if not user_id:
-        return jsonify([])
+    # L'historique est individuel à chaque compte : jamais partagé entre utilisateurs.
+    user_id = g.clerk_user_id
 
     with get_db() as conn:
         rows = conn.execute(
@@ -22,12 +22,12 @@ def list_sessions():
                       COUNT(DISTINCT g.id)  AS nb_generations,
                       COUNT(DISTINCT cm.id) AS nb_messages,
                       COUNT(DISTINCT e.id)  AS nb_evaluations,
-                      AVG(e.score)           AS avg_score
+                      AVG(e.score)::float    AS avg_score
                FROM sessions s
                LEFT JOIN generations   g  ON g.session_id  = s.id
                LEFT JOIN chat_messages cm ON cm.session_id = s.id
                LEFT JOIN evaluations   e  ON e.session_id  = s.id
-               WHERE s.user_id = ?
+               WHERE s.user_id = %s
                GROUP BY s.id
                ORDER BY s.created_at DESC""",
             (user_id,)
@@ -50,28 +50,29 @@ def list_sessions():
 
 
 @sessions_bp.route("/api/sessions/<session_id>", methods=["GET"])
+@require_auth
 def get_session(session_id):
-    user_id = request.args.get("user_id")
+    user_id = g.clerk_user_id
 
     with get_db() as conn:
-        session = conn.execute("SELECT * FROM sessions WHERE id=?", (session_id,)).fetchone()
+        session = conn.execute("SELECT * FROM sessions WHERE id=%s", (session_id,)).fetchone()
         if not session:
             return jsonify({"error": "Session introuvable"}), 404
         if session["user_id"] and session["user_id"] != user_id:
             return jsonify({"error": "Session introuvable"}), 404
 
         generations = conn.execute(
-            "SELECT * FROM generations WHERE session_id=? ORDER BY created_at DESC",
+            "SELECT * FROM generations WHERE session_id=%s ORDER BY created_at DESC",
             (session_id,)
         ).fetchall()
 
         messages = conn.execute(
-            "SELECT * FROM chat_messages WHERE session_id=? ORDER BY created_at",
+            "SELECT * FROM chat_messages WHERE session_id=%s ORDER BY created_at",
             (session_id,)
         ).fetchall()
 
         evaluations = conn.execute(
-            "SELECT * FROM evaluations WHERE session_id=? ORDER BY created_at DESC",
+            "SELECT * FROM evaluations WHERE session_id=%s ORDER BY created_at DESC",
             (session_id,)
         ).fetchall()
 
@@ -80,7 +81,7 @@ def get_session(session_id):
 
     return jsonify({
         "session":     row_to_dict(session),
-        "generations": [row_to_dict(g) for g in generations],
+        "generations": [row_to_dict(gen) for gen in generations],
         "messages":    [row_to_dict(m) for m in messages],
         "evaluations": [
             {**row_to_dict(e), "evaluation": json.loads(e["evaluation_json"]) if e["evaluation_json"] else {}}

@@ -43,11 +43,11 @@ def _product_metrics(conn) -> dict:
     active_users = conn.execute(f"""
         SELECT COUNT(DISTINCT user_id) FROM (
             SELECT user_id FROM sessions
-            WHERE user_id IS NOT NULL AND created_at >= datetime('now', '-{ACTIVE_WINDOW_DAYS} days')
+            WHERE user_id IS NOT NULL AND created_at::timestamp >= now() - interval '{ACTIVE_WINDOW_DAYS} days'
             UNION
             SELECT user_id FROM job_interviews
-            WHERE user_id IS NOT NULL AND created_at >= datetime('now', '-{ACTIVE_WINDOW_DAYS} days')
-        )
+            WHERE user_id IS NOT NULL AND created_at::timestamp >= now() - interval '{ACTIVE_WINDOW_DAYS} days'
+        ) AS t
     """).fetchone()[0]
 
     interviews_started = conn.execute("SELECT COUNT(*) FROM job_interviews").fetchone()[0]
@@ -99,7 +99,7 @@ def _product_metrics(conn) -> dict:
     # générique de session avec début/fin n'existe ailleurs dans l'app).
     duration_row = conn.execute("""
         SELECT AVG(
-            (julianday(completed_at) - julianday(created_at)) * 24 * 60
+            EXTRACT(EPOCH FROM (completed_at::timestamp - created_at::timestamp)) / 60
         ) AS avg_minutes
         FROM job_interviews
         WHERE status='completed' AND completed_at IS NOT NULL
@@ -126,7 +126,7 @@ def _ai_metrics(conn) -> dict:
     errors = conn.execute("SELECT COUNT(*) FROM ai_call_log WHERE success=0").fetchone()[0]
 
     agg = conn.execute("""
-        SELECT AVG(latency_ms) AS avg_latency,
+        SELECT AVG(latency_ms)::float AS avg_latency,
                SUM(input_tokens) AS total_input,
                SUM(output_tokens) AS total_output
         FROM ai_call_log

@@ -1,15 +1,25 @@
-// Empêche l'accès aux pages qui l'incluent si personne n'est connecté —
-// notamment après une déconnexion (le lien "Déconnexion" vide déjà
-// localStorage.mocklyUser). Placé en <head>, chargé de façon bloquante
-// (pas de defer/async), pour rediriger avant que la page ne s'affiche.
+// Empêche l'accès aux pages qui l'incluent tant que Clerk n'a pas confirmé
+// une session active — remplace l'ancien contrôle synchrone sur
+// localStorage.mocklyUser. La vérification Clerk est forcément asynchrone
+// (chargement du SDK + appel réseau), donc on masque la page immédiatement
+// (avant même le premier paint, ce script est chargé bloquant dans <head>)
+// et on ne la révèle qu'une fois la session confirmée ; sinon redirection.
+// Nécessite que clerk-auth.js soit chargé juste avant ce script.
 (function () {
-    let user = null;
-    try {
-        user = JSON.parse(localStorage.getItem('mocklyUser') || 'null');
-    } catch (error) {
-        user = null;
+    document.documentElement.style.visibility = 'hidden';
+
+    function reveal() {
+        document.documentElement.style.visibility = '';
     }
-    if (!user || !user.id) {
-        window.location.replace('auth.html');
-    }
+
+    window.addEventListener('DOMContentLoaded', async () => {
+        if (!window.MocklyAuth) {
+            // clerk-auth.js pas chargé avant ce script : on ne peut rien vérifier,
+            // mieux vaut renvoyer vers l'auth que de laisser une page bloquée invisible.
+            window.location.replace('auth.html');
+            return;
+        }
+        const me = await window.MocklyAuth.requireSignedIn('auth.html');
+        if (me) reveal();
+    });
 })();

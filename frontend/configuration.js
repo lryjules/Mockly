@@ -1,19 +1,9 @@
 const API_BASE_URL = '/api';
 
-function getCurrentUser() {
-    const stored = localStorage.getItem('mocklyUser');
-    if (!stored) return null;
-    try {
-        return JSON.parse(stored);
-    } catch (error) {
-        return null;
-    }
-}
-
-async function loadProfile(userId) {
+async function loadProfile() {
     const status = document.getElementById('configStatus');
     try {
-        const response = await fetch(`${API_BASE_URL}/informations-pro/${userId}`);
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/informations-pro`);
         if (response.status === 404) return; // Pas encore d'informations enregistrées
         if (!response.ok) throw new Error('Impossible de charger tes informations');
 
@@ -29,8 +19,6 @@ async function loadProfile(userId) {
 
 async function handleSave(event) {
     event.preventDefault();
-    const user = getCurrentUser();
-    if (!user) return;
 
     const btn = document.getElementById('configSaveBtn');
     const status = document.getElementById('configStatus');
@@ -38,11 +26,10 @@ async function handleSave(event) {
     btn.textContent = 'Enregistrement...';
 
     try {
-        const response = await fetch(`${API_BASE_URL}/informations-pro`, {
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/informations-pro`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                user_id: user.id,
                 studyLevel: document.getElementById('studyLevelInput').value.trim(),
                 targetDomain: document.getElementById('targetDomainInput').value.trim(),
                 currentGoal: document.getElementById('currentGoalInput').value.trim()
@@ -61,12 +48,12 @@ async function handleSave(event) {
     }
 }
 
-function initConfigurationPage() {
-    const user = getCurrentUser();
+async function initConfigurationPage() {
+    const me = await window.MocklyAuth.getCurrentUser();
     const locked = document.getElementById('configLocked');
     const form = document.getElementById('configForm');
 
-    if (!user) {
+    if (!me) {
         locked.classList.remove('hidden');
         form.classList.add('hidden');
         return;
@@ -75,7 +62,7 @@ function initConfigurationPage() {
     locked.classList.add('hidden');
     form.classList.remove('hidden');
     form.addEventListener('submit', handleSave);
-    loadProfile(user.id);
+    loadProfile();
 }
 
 document.addEventListener('DOMContentLoaded', initConfigurationPage);

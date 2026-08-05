@@ -1,11 +1,12 @@
 // Affiche le lien "Admin" (ou "École") dans la nav selon le type de compte.
 // La vraie protection est côté serveur (is_admin / is_school_admin vérifié en
 // base sur chaque appel /api/admin/* ou /api/school/*) — ceci n'est qu'un
-// confort d'affichage.
-(function () {
+// confort d'affichage. Nécessite clerk-auth.js chargé avant ce script.
+(async function () {
     try {
-        const stored = localStorage.getItem('mocklyUser');
-        const user = stored ? JSON.parse(stored) : null;
+        if (!window.MocklyAuth) return;
+        const me = await window.MocklyAuth.getCurrentUser();
+        const user = me && me.user;
         if (user && user.is_admin) {
             document.querySelectorAll('.admin-nav-link').forEach((el) => el.classList.remove('hidden'));
         }

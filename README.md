@@ -1,5 +1,21 @@
 <H1>Mockly - L'assistant IA garant de votre réussite</H1>
 
+## ⚙️ Configuration (variables d'environnement)
+
+À définir dans `.env` en local (voir `.env` pour le gabarit) :
+
+| Variable | Rôle |
+|---|---|
+| `GEMINI_API_KEY` | Clé API Gemini (génération IA — CV, questions, évaluations) |
+| `DATABASE_URL` | Chaîne de connexion Postgres (Supabase > Project Settings > Database > Connection string, mode **Session pooler**) |
+| `CLERK_PUBLISHABLE_KEY` | Clé publique Clerk (exposée au front via `/api/config`) |
+| `CLERK_SECRET_KEY` | Clé secrète Clerk (vérification des tokens de session côté serveur) |
+| `CLERK_ADMIN_EMAILS` | Emails à promouvoir admin dès leur premier login Clerk (liste séparée par des virgules) |
+| `CLERK_AUTHORIZED_PARTIES` | Origines autorisées à présenter un token Clerk (ex: `http://localhost:5001,https://mockly.onrender.com`) — à configurer en prod |
+| `ALLOWED_ORIGINS` | Origines autorisées en CORS si le front est un jour servi séparément (sinon laisser vide : même origine) |
+
+La base de données (Postgres/Supabase) et l'authentification (Clerk) sont toutes les deux **requises** — l'app renvoie des erreurs explicites (jamais un crash silencieux) si l'une des deux manque, plutôt que de démarrer dans un état à moitié fonctionnel.
+
 ## 🌳 Calcul des compétences (arbre de progression)
 
 Mockly construit pour chaque étudiant un **arbre de compétences personnel**, alimenté automatiquement par trois sources : le CV déposé, les entretiens audio, et les échanges notés avec le Coach IA. Cette section détaille exactement comment il est calculé.
@@ -8,7 +24,7 @@ Le code vit dans `api/profile_engine.py` (le "moteur" — seul module qui lit/é
 
 ### Modèle de données
 
-Deux tables SQLite :
+Deux tables Postgres (Supabase) :
 
 - **`student_competency`** — une ligne par (étudiant, compétence) :
   | colonne | rôle |

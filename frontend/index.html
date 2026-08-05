@@ -6,13 +6,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mockly — Préparation aux entretiens IA</title>
     <meta name="description" content="Mockly est une plateforme de préparation aux entretiens d’embauche, pensée pour les career centers et les étudiants.">
+    <link rel="icon" type="image/png" href="assets/logo.png">
     <link rel="stylesheet" href="styles.css">
 </head>
 
 <body class="landing-page">
     <div class="landing-shell">
         <header class="topbar">
-            <a href="#" class="brand">Mockly</a>
+            <a href="#" class="brand"><img src="assets/logo.png" class="brand-logo" alt="">Mockly</a>
             <nav class="topnav">
                 <a href="#benefits">Produit</a>
                 <a href="features.html">Fonctionnalités</a>
@@ -117,51 +118,6 @@
         </footer>
     </div>
 
-    <div class="modal-backdrop hidden"></div>
-    <div id="authModal" class="auth-modal hidden" role="dialog" aria-modal="true" aria-label="Création de compte">
-        <button id="closeAuthModal" class="modal-close" aria-label="Fermer">×</button>
-        <div id="authPanel" class="auth-panel">
-            <div class="auth-tabs">
-                <button id="showSignupTab" class="auth-tab active" type="button">Créer un compte</button>
-                <button id="showLoginTab" class="auth-tab" type="button">Se connecter</button>
-            </div>
-            <h2>Bienvenue chez Mockly</h2>
-            <p class="auth-subtitle">Crée ton compte pour accéder à l’expérience personnalisée.</p>
-            <form id="authForm" class="auth-form">
-                <label>
-                    Adresse email
-                    <input id="authEmail" type="email" required>
-                </label>
-                <label>
-                    Mot de passe
-                    <input id="authPassword" type="password" required>
-                </label>
-                <label id="confirmPasswordGroup">
-                    Confirmation du mot de passe
-                    <input id="authConfirmPassword" type="password">
-                </label>
-                <button id="authSubmitBtn" class="primary-btn full-width" type="submit">Créer mon compte</button>
-                <p id="authMessage" class="auth-message"></p>
-            </form>
-        </div>
-
-        <div id="onboardingPanel" class="auth-panel hidden">
-            <div class="panda-chat">
-                <div class="panda-avatar">🐼</div>
-                <div class="panda-bubble">
-                    <strong>Mockly le panda</strong>
-                    <p>Je vais te guider pour définir ton profil et personnaliser tes prochaines simulations.</p>
-                </div>
-            </div>
-            <label id="onboardingLabel" class="onboarding-label"></label>
-            <input id="onboardingInput" type="text" class="onboarding-input" placeholder="Ta réponse...">
-            <button id="onboardingNext" class="primary-btn full-width" type="button">Continuer</button>
-            <p id="onboardingStatus" class="auth-message"></p>
-            <button id="goWorkspaceBtn" class="secondary-btn full-width" type="button">Accéder au workspace</button>
-        </div>
-    </div>
-
-    <script src="landing.js"></script>
 </body>
 
 </html>

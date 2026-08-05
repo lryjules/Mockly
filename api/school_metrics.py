@@ -18,34 +18,34 @@ def _safe_div(numerator: float, denominator: float) -> float:
 
 def _pool_kpis(conn, school_id: str) -> dict:
     nb_students = conn.execute(
-        "SELECT COUNT(*) FROM users WHERE school_id=? AND is_admin=0 AND is_school_admin=0",
+        "SELECT COUNT(*) FROM users WHERE school_id=%s AND is_admin=0 AND is_school_admin=0",
         (school_id,)
     ).fetchone()[0]
 
     active_students = conn.execute(f"""
         SELECT COUNT(DISTINCT u.id) FROM users u
-        WHERE u.school_id = ? AND (
-            EXISTS (SELECT 1 FROM sessions s WHERE s.user_id = u.id AND s.created_at >= datetime('now', '-{ACTIVE_WINDOW_DAYS} days'))
-            OR EXISTS (SELECT 1 FROM job_interviews ji WHERE ji.user_id = u.id AND ji.created_at >= datetime('now', '-{ACTIVE_WINDOW_DAYS} days'))
+        WHERE u.school_id = %s AND (
+            EXISTS (SELECT 1 FROM sessions s WHERE s.user_id = u.id AND s.created_at::timestamp >= now() - interval '{ACTIVE_WINDOW_DAYS} days')
+            OR EXISTS (SELECT 1 FROM job_interviews ji WHERE ji.user_id = u.id AND ji.created_at::timestamp >= now() - interval '{ACTIVE_WINDOW_DAYS} days')
         )
     """, (school_id,)).fetchone()[0]
 
     interviews_started = conn.execute("""
         SELECT COUNT(*) FROM job_interviews ji
         JOIN users u ON u.id = ji.user_id
-        WHERE u.school_id = ?
+        WHERE u.school_id = %s
     """, (school_id,)).fetchone()[0]
 
     interviews_completed = conn.execute("""
         SELECT COUNT(*) FROM job_interviews ji
         JOIN users u ON u.id = ji.user_id
-        WHERE u.school_id = ? AND ji.status = 'completed'
+        WHERE u.school_id = %s AND ji.status = 'completed'
     """, (school_id,)).fetchone()[0]
 
     score_rows = conn.execute("""
         SELECT ji.final_evaluation FROM job_interviews ji
         JOIN users u ON u.id = ji.user_id
-        WHERE u.school_id = ? AND ji.status = 'completed' AND ji.final_evaluation IS NOT NULL
+        WHERE u.school_id = %s AND ji.status = 'completed' AND ji.final_evaluation IS NOT NULL
     """, (school_id,)).fetchall()
 
     scores = []
@@ -60,7 +60,7 @@ def _pool_kpis(conn, school_id: str) -> dict:
 
     credits_row = conn.execute(
         "SELECT SUM(interview_credits) AS total_interview, SUM(coach_credits) AS total_coach "
-        "FROM users WHERE school_id=? AND is_admin=0 AND is_school_admin=0",
+        "FROM users WHERE school_id=%s AND is_admin=0 AND is_school_admin=0",
         (school_id,)
     ).fetchone()
 
@@ -85,7 +85,7 @@ def _student_list(conn, school_id: str) -> list[dict]:
         FROM users u
         LEFT JOIN sessions s ON s.user_id = u.id
         LEFT JOIN job_interviews ji ON ji.user_id = u.id
-        WHERE u.school_id = ? AND u.is_admin = 0 AND u.is_school_admin = 0
+        WHERE u.school_id = %s AND u.is_admin = 0 AND u.is_school_admin = 0
         GROUP BY u.id
         ORDER BY u.created_at DESC
     """, (school_id,)).fetchall()
@@ -94,7 +94,7 @@ def _student_list(conn, school_id: str) -> list[dict]:
     for row in rows:
         score_rows = conn.execute("""
             SELECT final_evaluation FROM job_interviews
-            WHERE user_id=? AND status='completed' AND final_evaluation IS NOT NULL
+            WHERE user_id=%s AND status='completed' AND final_evaluation IS NOT NULL
         """, (row["id"],)).fetchall()
         scores = []
         for r in score_rows:
@@ -127,10 +127,10 @@ def _weakest_competencies(conn, school_id: str, limit: int = 10) -> dict:
                COUNT(DISTINCT sc.student_id) AS nb_students
         FROM student_competency sc
         JOIN users u ON u.id = sc.student_id
-        WHERE u.school_id = ? AND sc.evaluation_count > 0
-        GROUP BY sc.name
+        WHERE u.school_id = %s AND sc.evaluation_count > 0
+        GROUP BY sc.name, sc.category
         ORDER BY avg_score ASC
-        LIMIT ?
+        LIMIT %s
     """, (school_id, limit)).fetchall()
 
     by_category = conn.execute("""
@@ -139,7 +139,7 @@ def _weakest_competencies(conn, school_id: str, limit: int = 10) -> dict:
                COUNT(DISTINCT sc.student_id) AS nb_students
         FROM student_competency sc
         JOIN users u ON u.id = sc.student_id
-        WHERE u.school_id = ? AND sc.evaluation_count > 0
+        WHERE u.school_id = %s AND sc.evaluation_count > 0
         GROUP BY sc.category
         ORDER BY avg_score ASC
     """, (school_id,)).fetchall()
@@ -158,7 +158,7 @@ def _weakest_competencies(conn, school_id: str, limit: int = 10) -> dict:
 
 def get_school_dashboard(school_id: str) -> dict:
     with get_db() as conn:
-        school = conn.execute("SELECT id, name FROM schools WHERE id=?", (school_id,)).fetchone()
+        school = conn.execute("SELECT id, name FROM schools WHERE id=%s", (school_id,)).fetchone()
         if not school:
             return None
 

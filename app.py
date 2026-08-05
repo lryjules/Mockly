@@ -18,14 +18,17 @@ Routes (voir api/routes/ pour le détail) :
   pages_routes      → sert le frontend (/, /results, /interview, /configuration, /admin)
 """
 
+import os
+
 from dotenv import load_dotenv
 load_dotenv()
 
-from flask import Flask
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 from api.db import init_db
 from api import ai_gateway
+from api.security import limiter
 
 from api.routes.auth_routes import auth_bp
 from api.routes.cv_routes import cv_bp
@@ -39,7 +42,62 @@ from api.routes.school_routes import school_bp
 from api.routes.pages_routes import pages_bp
 
 app = Flask(__name__, static_folder=None)
-CORS(app, origins=["*"])
+
+# Le front est servi par cette même app (pages_routes) : aucune requête
+# cross-origin n'est nécessaire en usage normal. On n'active CORS que si
+# ALLOWED_ORIGINS est explicitement configurée (ex. front séparé), pour ne
+# pas laisser n'importe quel site tiers appeler l'API depuis le navigateur
+# d'un utilisateur.
+_allowed_origins = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()]
+if _allowed_origins:
+    CORS(app, origins=_allowed_origins)
+
+# Capuchon global sur la taille de toute requête (upload CV, audio d'entretien
+# compris) : au-delà, Flask coupe la connexion avant même de lire le corps.
+app.config["MAX_CONTENT_LENGTH"] = 15 * 1024 * 1024  # 15 Mo
+
+limiter.init_app(app)
+
+
+@app.errorhandler(413)
+def handle_payload_too_large(e):
+    return jsonify({"error": "Fichier ou requête trop volumineux (max 15 Mo)"}), 413
+
+
+@app.errorhandler(429)
+def handle_rate_limited(e):
+    return jsonify({"error": "Trop de requêtes, réessaie dans quelques instants"}), 429
+
+
+@app.errorhandler(404)
+def handle_not_found(e):
+    # Ne s'applique qu'aux routes /api/* : pages_routes gère déjà le reste
+    # (catch-all qui sert le frontend statique) et n'appelle jamais ce handler
+    # pour des fichiers manquants côté navigateur classique.
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "Ressource introuvable"}), 404
+    return e, 404
+
+
+@app.errorhandler(500)
+def handle_server_error(e):
+    # Historique : une erreur non-JSON ici (page HTML Flask par défaut) casse
+    # le frontend, qui fait toujours `response.json()` sans vérifier le
+    # content-type ("Unexpected token '<' ... is not valid JSON").
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "Erreur serveur interne"}), 500
+    return e, 500
+
+
+@app.after_request
+def set_security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    # microphone=(self) : requis par l'entretien audio (getUserMedia côté /interview).
+    response.headers["Permissions-Policy"] = "geolocation=(), camera=(), microphone=(self)"
+    return response
+
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(cv_bp)
@@ -59,13 +117,15 @@ init_db()
 
 
 if __name__ == "__main__":
+    from api.db import DATABASE_URL
     key_status = "✅ configurée" if ai_gateway.GEMINI_API_KEY else "❌ non configurée (mode mock)"
+    db_status = "✅ configurée" if DATABASE_URL else "❌ DATABASE_URL manquant"
     print(f"""
 ╔═══════════════════════════════════════════╗
 ║       Interview Coach — Backend           ║
 ╠═══════════════════════════════════════════╣
 ║  URL:          http://localhost:5001      ║
-║  DB:           data/interview_coach.db    ║
+║  DATABASE_URL: {db_status:<27}║
 ║  GEMINI_API_KEY: {key_status:<25}║
 ╚═══════════════════════════════════════════╝
 """)

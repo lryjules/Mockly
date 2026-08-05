@@ -1,15 +1,5 @@
 const API_BASE_URL = '/api';
 
-function getCurrentUser() {
-    const stored = localStorage.getItem('mocklyUser');
-    if (!stored) return null;
-    try {
-        return JSON.parse(stored);
-    } catch (error) {
-        return null;
-    }
-}
-
 function el(id) {
     return document.getElementById(id);
 }
@@ -103,17 +93,16 @@ function renderStudentsTable(students) {
 }
 
 async function adjustCredit(studentId, kind, stepperEl, delta) {
-    const admin = getCurrentUser();
     const currentValue = parseInt(stepperEl.querySelector('.credit-value').textContent, 10);
     const newValue = Math.max(0, currentValue + delta);
 
     stepperEl.querySelectorAll('button').forEach((b) => { b.disabled = true; });
 
     try {
-        const response = await fetch(`${API_BASE_URL}/school/students/${studentId}/credits`, {
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/school/students/${studentId}/credits`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_id: admin.id, [kind]: newValue }),
+            body: JSON.stringify({ [kind]: newValue }),
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Erreur');
@@ -132,11 +121,10 @@ async function adjustCredit(studentId, kind, stepperEl, delta) {
 
 async function submitBulkCredits(event) {
     event.preventDefault();
-    const admin = getCurrentUser();
     const status = el('bulkSaveStatus');
     const formData = new FormData(event.target);
 
-    const payload = { user_id: admin.id };
+    const payload = {};
     let hasValue = false;
     ['interview_credits', 'coach_credits'].forEach((key) => {
         const raw = formData.get(key);
@@ -153,7 +141,7 @@ async function submitBulkCredits(event) {
 
     status.textContent = 'Application...';
     try {
-        const response = await fetch(`${API_BASE_URL}/school/credits/bulk`, {
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/school/credits/bulk`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
@@ -170,8 +158,8 @@ async function submitBulkCredits(event) {
 }
 
 async function loadDashboard(opts = {}) {
-    const user = getCurrentUser();
-    if (!user || !user.is_school_admin) {
+    const me = await window.MocklyAuth.getCurrentUser();
+    if (!me || !me.user.is_school_admin) {
         el('schoolLocked').classList.remove('hidden');
         el('schoolContent').classList.add('hidden');
         return;
@@ -186,7 +174,7 @@ async function loadDashboard(opts = {}) {
     }
 
     try {
-        const response = await fetch(`${API_BASE_URL}/school/dashboard?user_id=${encodeURIComponent(user.id)}`);
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/school/dashboard`);
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Impossible de charger le tableau de bord');
 

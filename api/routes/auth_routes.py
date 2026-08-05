@@ -1,16 +1,25 @@
-"""Routes d'authentification : /api/signup, /api/login, /api/schools."""
+"""Routes d'identité : /api/config, /api/schools, /api/me, /api/me/school.
 
-import uuid
+L'authentification elle-même (mot de passe, session) est déléguée à Clerk —
+ce blueprint ne fait plus que : exposer la clé publique Clerk au front,
+lister les écoles (pour l'onboarding post-inscription), et exposer/compléter
+le profil local (rôle, crédits, école) une fois l'identité Clerk vérifiée.
+Voir api/clerk_auth.py pour la vérification de token.
+"""
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, g
 
 from api.db import get_db
-from api.user_helpers import hash_password, get_informations_pro
+from api.user_helpers import get_informations_pro
+from api.security import limiter, validate_length
+from api.clerk_auth import require_auth, get_or_create_local_user, CLERK_PUBLISHABLE_KEY
 
 auth_bp = Blueprint("auth", __name__)
 
+MAX_SCHOOL_ID_LEN = 100
 
-def _user_payload(row) -> dict:
+
+def _user_payload(row: dict) -> dict:
     return {
         "id": row["id"],
         "email": row["email"],
@@ -20,72 +29,51 @@ def _user_payload(row) -> dict:
     }
 
 
+@auth_bp.route("/api/config", methods=["GET"])
+def get_config():
+    """Public : le front a besoin de la clé publishable pour initialiser le SDK Clerk."""
+    return jsonify({"clerk_publishable_key": CLERK_PUBLISHABLE_KEY})
+
+
 @auth_bp.route("/api/schools", methods=["GET"])
 def list_schools_public():
-    """Public (pas d'auth) : alimente le menu déroulant "école" du formulaire d'inscription."""
+    """Public (pas d'auth) : alimente le sélecteur d'école affiché après l'inscription Clerk."""
     with get_db() as conn:
         rows = conn.execute("SELECT id, name FROM schools ORDER BY name").fetchall()
     return jsonify([{"id": r["id"], "name": r["name"]} for r in rows])
 
 
-@auth_bp.route("/api/signup", methods=["POST"])
-def signup():
-    data = request.get_json(force=True)
-    email = (data.get("email") or "").strip().lower()
-    password = (data.get("password") or "").strip()
-    confirm_password = (data.get("confirmPassword") or "").strip()
-    school_id = (data.get("school_id") or "").strip()
+@auth_bp.route("/api/me", methods=["GET"])
+@require_auth
+def get_me():
+    """Identité + profil de l'utilisateur Clerk actuellement connecté. Provisionne
+    sa ligne locale (crédits par défaut, rôle) au tout premier appel."""
+    row = get_or_create_local_user(g.clerk_user_id)
+    profile = get_informations_pro(g.clerk_user_id)
+    return jsonify({"user": _user_payload(row), "profile": profile or {}})
 
-    if not email or not password:
-        return jsonify({"error": "Email et mot de passe requis"}), 400
-    if password != confirm_password:
-        return jsonify({"error": "La confirmation du mot de passe ne correspond pas"}), 400
+
+@auth_bp.route("/api/me/school", methods=["POST"])
+@require_auth
+@limiter.limit("10 per hour")
+def set_my_school():
+    """Complète l'inscription : Clerk ne connaît pas notre notion d'école, donc
+    un compte fraîchement créé doit choisir la sienne ici avant d'accéder au
+    workspace (voir onboarding.js côté front)."""
+    data = request.get_json(force=True)
+    school_id = (data.get("school_id") or "").strip()
+    if err := validate_length(school_id, "school_id", MAX_SCHOOL_ID_LEN):
+        return err
     if not school_id:
         return jsonify({"error": "Sélectionne ton école"}), 400
 
-    with get_db() as conn:
-        existing = conn.execute("SELECT id FROM users WHERE email=?", (email,)).fetchone()
-        if existing:
-            return jsonify({"error": "Cet email est déjà utilisé"}), 409
+    get_or_create_local_user(g.clerk_user_id)
 
-        school = conn.execute("SELECT id FROM schools WHERE id=?", (school_id,)).fetchone()
+    with get_db() as conn:
+        school = conn.execute("SELECT id FROM schools WHERE id=%s", (school_id,)).fetchone()
         if not school:
             return jsonify({"error": "École inconnue"}), 400
+        conn.execute("UPDATE users SET school_id=%s WHERE id=%s", (school_id, g.clerk_user_id))
+        row = conn.execute("SELECT * FROM users WHERE id=%s", (g.clerk_user_id,)).fetchone()
 
-        user_id = str(uuid.uuid4())
-        conn.execute(
-            "INSERT INTO users (id, email, password_hash, school_id) VALUES (?,?,?,?)",
-            (user_id, email, hash_password(password), school_id)
-        )
-        conn.execute("INSERT INTO informations_pro (user_id) VALUES (?)", (user_id,))
-
-    return jsonify({
-        "message": "Compte créé",
-        "user": {"id": user_id, "email": email, "is_admin": False, "is_school_admin": False, "school_id": school_id}
-    })
-
-
-@auth_bp.route("/api/login", methods=["POST"])
-def login():
-    data = request.get_json(force=True)
-    email = (data.get("email") or "").strip().lower()
-    password = (data.get("password") or "").strip()
-
-    if not email or not password:
-        return jsonify({"error": "Email et mot de passe requis"}), 400
-
-    with get_db() as conn:
-        user = conn.execute(
-            "SELECT id, email, password_hash, is_admin, is_school_admin, school_id FROM users WHERE email=?",
-            (email,)
-        ).fetchone()
-
-    if not user or user["password_hash"] != hash_password(password):
-        return jsonify({"error": "Identifiants invalides"}), 401
-
-    profile = get_informations_pro(user["id"])
-    return jsonify({
-        "message": "Connexion réussie",
-        "user": _user_payload(user),
-        "profile": profile or {}
-    })
+    return jsonify({"user": _user_payload(dict(row))})

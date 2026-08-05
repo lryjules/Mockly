@@ -16,7 +16,7 @@ import uuid
 import json
 import base64
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, g
 
 from api.db import get_db
 from api.speech import stt as speech_stt
@@ -25,8 +25,13 @@ from api import profileprocessing
 from api import interviewengine
 from api import profile_engine
 from api import credits
+from api.security import limiter, validate_length
+from api.clerk_auth import require_auth, get_or_create_local_user, session_owned_by_current_user
 
 interview_bp = Blueprint("interview", __name__)
+
+MAX_JOB_DESCRIPTION_LEN = 6000
+MAX_AUDIO_SIZE = 12 * 1024 * 1024  # 12 Mo
 
 
 def _row_to_turn_dict(row) -> dict:
@@ -56,23 +61,28 @@ def _generate_lookahead(interview_id, job_title, job_description,
 
 
 @interview_bp.route("/api/interview/start", methods=["POST"])
+@require_auth
+@limiter.limit("20 per hour")
 def interview_start():
     data = request.get_json(force=True)
-    user_id = data.get("user_id")
+    user_id = g.clerk_user_id
     session_id = data.get("session_id")
     job_description = (data.get("job_description") or "").strip()
 
     if not job_description:
         return jsonify({"error": "job_description requis"}), 400
-    if not user_id:
-        return jsonify({"error": "Connecte-toi pour démarrer un entretien"}), 401
+    if err := validate_length(job_description, "job_description", MAX_JOB_DESCRIPTION_LEN):
+        return err
+    get_or_create_local_user(user_id)
     if not credits.consume_credit(user_id, "interview"):
         return jsonify({"error": "Crédits Interview épuisés. Contacte ton administrateur pour en obtenir davantage."}), 402
 
     cv_data = None
     if session_id:
         with get_db() as conn:
-            row = conn.execute("SELECT cv_data FROM sessions WHERE id=?", (session_id,)).fetchone()
+            if not session_owned_by_current_user(conn, session_id):
+                return jsonify({"error": "Session introuvable"}), 404
+            row = conn.execute("SELECT cv_data FROM sessions WHERE id=%s", (session_id,)).fetchone()
         if row and row["cv_data"]:
             cv_data = json.loads(row["cv_data"])
 
@@ -97,19 +107,19 @@ def interview_start():
     with get_db() as conn:
         conn.execute(
             """INSERT INTO job_interviews (id, user_id, session_id, job_title, job_description, competencies)
-               VALUES (?,?,?,?,?,?)""",
+               VALUES (%s,%s,%s,%s,%s,%s)""",
             (interview_id, user_id, session_id, job_title, job_description,
              json.dumps(competencies, ensure_ascii=False))
         )
         conn.execute(
             """INSERT INTO job_interview_turns (interview_id, turn_index, competency, question, asked_at)
-               VALUES (?,?,?,?, datetime('now'))""",
+               VALUES (%s,%s,%s,%s, to_char(now(), 'YYYY-MM-DD HH24:MI:SS'))""",
             (interview_id, 0, first_competency, first_question)
         )
         if lookahead:
             conn.execute(
                 """INSERT INTO job_interview_turns (interview_id, turn_index, competency, question)
-                   VALUES (?,?,?,?)""",
+                   VALUES (%s,%s,%s,%s)""",
                 (interview_id, lookahead["turn_index"], lookahead["competency"], lookahead["question"])
             )
 
@@ -128,6 +138,8 @@ def interview_start():
 
 
 @interview_bp.route("/api/interview/respond", methods=["POST"])
+@require_auth
+@limiter.limit("60 per hour")
 def interview_respond():
     interview_id = request.form.get("interview_id")
     turn_index = request.form.get("turn_index", type=int)
@@ -136,14 +148,22 @@ def interview_respond():
     if not interview_id or turn_index is None or not audio_file:
         return jsonify({"error": "interview_id, turn_index et audio requis"}), 400
 
+    audio_file.stream.seek(0, 2)
+    audio_size = audio_file.stream.tell()
+    audio_file.stream.seek(0)
+    if audio_size > MAX_AUDIO_SIZE:
+        return jsonify({"error": "Fichier audio trop volumineux (max 12 Mo)"}), 413
+    if audio_size == 0:
+        return jsonify({"error": "Fichier audio vide"}), 400
+
     # --- Lecture seule : tout le contexte nécessaire ---
     with get_db() as conn:
-        interview = conn.execute("SELECT * FROM job_interviews WHERE id=?", (interview_id,)).fetchone()
-        if not interview:
+        interview = conn.execute("SELECT * FROM job_interviews WHERE id=%s", (interview_id,)).fetchone()
+        if not interview or (interview["user_id"] and interview["user_id"] != g.clerk_user_id):
             return jsonify({"error": "Entretien introuvable"}), 404
 
         current_turn = conn.execute(
-            "SELECT * FROM job_interview_turns WHERE interview_id=? AND turn_index=?",
+            "SELECT * FROM job_interview_turns WHERE interview_id=%s AND turn_index=%s",
             (interview_id, turn_index)
         ).fetchone()
         if not current_turn:
@@ -151,14 +171,14 @@ def interview_respond():
 
         all_turns = [
             _row_to_turn_dict(r) for r in conn.execute(
-                "SELECT * FROM job_interview_turns WHERE interview_id=? ORDER BY turn_index",
+                "SELECT * FROM job_interview_turns WHERE interview_id=%s ORDER BY turn_index",
                 (interview_id,)
             ).fetchall()
         ]
 
         cv_data = None
         if interview["session_id"]:
-            session_row = conn.execute("SELECT cv_data FROM sessions WHERE id=?", (interview["session_id"],)).fetchone()
+            session_row = conn.execute("SELECT cv_data FROM sessions WHERE id=%s", (interview["session_id"],)).fetchone()
             if session_row and session_row["cv_data"]:
                 cv_data = json.loads(session_row["cv_data"])
 
@@ -181,18 +201,18 @@ def interview_respond():
     # --- Écriture : une seule connexion courte, après tous les appels IA ---
     with get_db() as conn:
         conn.execute(
-            "UPDATE job_interview_turns SET user_response=? WHERE interview_id=? AND turn_index=?",
+            "UPDATE job_interview_turns SET user_response=%s WHERE interview_id=%s AND turn_index=%s",
             (transcript, interview_id, turn_index)
         )
         if next_turn:
             conn.execute(
-                "UPDATE job_interview_turns SET asked_at=datetime('now') WHERE interview_id=? AND turn_index=?",
+                "UPDATE job_interview_turns SET asked_at=to_char(now(), 'YYYY-MM-DD HH24:MI:SS') WHERE interview_id=%s AND turn_index=%s",
                 (interview_id, next_turn["turn_index"])
             )
             if new_lookahead:
                 conn.execute(
                     """INSERT INTO job_interview_turns (interview_id, turn_index, competency, question)
-                       VALUES (?,?,?,?)""",
+                       VALUES (%s,%s,%s,%s)""",
                     (interview_id, new_lookahead["turn_index"], new_lookahead["competency"], new_lookahead["question"])
                 )
 
@@ -217,6 +237,8 @@ def interview_respond():
 
 
 @interview_bp.route("/api/interview/finish", methods=["POST"])
+@require_auth
+@limiter.limit("20 per hour")
 def interview_finish():
     data = request.get_json(force=True)
     interview_id = data.get("interview_id")
@@ -225,13 +247,13 @@ def interview_finish():
 
     # --- Lecture seule ---
     with get_db() as conn:
-        interview = conn.execute("SELECT * FROM job_interviews WHERE id=?", (interview_id,)).fetchone()
-        if not interview:
+        interview = conn.execute("SELECT * FROM job_interviews WHERE id=%s", (interview_id,)).fetchone()
+        if not interview or (interview["user_id"] and interview["user_id"] != g.clerk_user_id):
             return jsonify({"error": "Entretien introuvable"}), 404
 
         turns = [
             _row_to_turn_dict(r) for r in conn.execute(
-                "SELECT * FROM job_interview_turns WHERE interview_id=? AND asked_at IS NOT NULL ORDER BY turn_index",
+                "SELECT * FROM job_interview_turns WHERE interview_id=%s AND asked_at IS NOT NULL ORDER BY turn_index",
                 (interview_id,)
             ).fetchall()
         ]
@@ -245,7 +267,7 @@ def interview_finish():
     # --- Écriture ---
     with get_db() as conn:
         conn.execute(
-            "UPDATE job_interviews SET status='completed', completed_at=datetime('now'), final_evaluation=? WHERE id=?",
+            "UPDATE job_interviews SET status='completed', completed_at=to_char(now(), 'YYYY-MM-DD HH24:MI:SS'), final_evaluation=%s WHERE id=%s",
             (json.dumps(evaluation, ensure_ascii=False), interview_id)
         )
 

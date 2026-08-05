@@ -11,16 +11,6 @@ const state = {
     currentAudio: null,
 };
 
-function getCurrentUser() {
-    const stored = localStorage.getItem('mocklyUser');
-    if (!stored) return null;
-    try {
-        return JSON.parse(stored);
-    } catch (error) {
-        return null;
-    }
-}
-
 function el(id) {
     return document.getElementById(id);
 }
@@ -88,12 +78,10 @@ async function startInterview(event) {
     btn.textContent = 'Préparation de l\'entretien...';
 
     try {
-        const user = getCurrentUser();
-        const response = await fetch(`${API_BASE_URL}/interview/start`, {
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/interview/start`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                user_id: user?.id,
                 job_description: jobDescription,
             }),
         });
@@ -165,7 +153,7 @@ async function submitAnswer(audioBlob) {
         formData.append('turn_index', state.turnIndex);
         formData.append('audio', audioBlob, 'answer.webm');
 
-        const response = await fetch(`${API_BASE_URL}/interview/respond`, {
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/interview/respond`, {
             method: 'POST',
             body: formData,
         });
@@ -201,7 +189,7 @@ async function finishInterview() {
     el('interviewScreen').classList.add('hidden');
 
     try {
-        const response = await fetch(`${API_BASE_URL}/interview/finish`, {
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/interview/finish`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ interview_id: state.interviewId }),
@@ -253,8 +241,8 @@ async function checkReadiness() {
         return;
     }
 
-    const user = getCurrentUser();
-    if (!user) {
+    const me = await window.MocklyAuth.getCurrentUser();
+    if (!me) {
         resultBox.classList.remove('hidden');
         resultBox.innerHTML = `Connecte-toi pour estimer ta préparation à partir de tes précédents entretiens. <a href="auth.html">Se connecter</a>`;
         return;
@@ -265,10 +253,10 @@ async function checkReadiness() {
     btn.textContent = 'Analyse en cours...';
 
     try {
-        const response = await fetch(`${API_BASE_URL}/profile/readiness-check`, {
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/profile/readiness-check`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_id: user.id, job_description: jobDescription }),
+            body: JSON.stringify({ job_description: jobDescription }),
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Impossible d'estimer ta préparation");

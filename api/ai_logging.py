@@ -38,7 +38,7 @@ def log_call(context: str, model: str | None, input_tokens: int | None,
                 """INSERT INTO ai_call_log
                    (context, model, input_tokens, output_tokens, latency_ms,
                     success, error_message, interview_id, session_id)
-                   VALUES (?,?,?,?,?,?,?,?,?)""",
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
                 (context, model, input_tokens, output_tokens, latency_ms,
                  int(success), error_message, interview_id, session_id)
             )

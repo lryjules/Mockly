@@ -10,84 +10,76 @@ Distinction clé dans le modèle de données :
   (entretien audio ou réponse notée en chat). current_score est fiable.
 """
 
-import sqlite3
-from pathlib import Path
 from datetime import datetime, timezone
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-DB_PATH = BASE_DIR / "data" / "interview_coach.db"
+from api.db import get_db
 
 RECENCY_WEIGHT = 0.4
 DEFAULT_NEUTRAL_SCORE = 50.0
 
-
-def _get_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(str(DB_PATH), timeout=10)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    return conn
+_SCHEMA_STATEMENTS = [
+    """
+    CREATE TABLE IF NOT EXISTS student_competency (
+        id SERIAL PRIMARY KEY,
+        student_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        category TEXT NOT NULL DEFAULT 'autre',
+        current_score REAL NOT NULL DEFAULT 0,
+        evaluation_count INTEGER NOT NULL DEFAULT 0,
+        declared INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL,
+        UNIQUE(student_id, name)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS competency_evaluation (
+        id SERIAL PRIMARY KEY,
+        student_competency_id INTEGER NOT NULL REFERENCES student_competency(id),
+        session_id TEXT NOT NULL,
+        score REAL NOT NULL,
+        feedback TEXT,
+        created_at TEXT NOT NULL
+    )
+    """,
+]
 
 
 def init_tables() -> None:
-    """Crée les tables du profil si elles n'existent pas. À appeler depuis app.py:init_db()."""
-    with _get_connection() as conn:
-        conn.executescript("""
-            CREATE TABLE IF NOT EXISTS student_competency (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                student_id TEXT NOT NULL,
-                name TEXT NOT NULL,
-                category TEXT NOT NULL DEFAULT 'autre',
-                current_score REAL NOT NULL DEFAULT 0,
-                evaluation_count INTEGER NOT NULL DEFAULT 0,
-                declared INTEGER NOT NULL DEFAULT 0,
-                updated_at TEXT NOT NULL,
-                UNIQUE(student_id, name)
-            );
-
-            CREATE TABLE IF NOT EXISTS competency_evaluation (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                student_competency_id INTEGER NOT NULL,
-                session_id TEXT NOT NULL,
-                score REAL NOT NULL,
-                feedback TEXT,
-                created_at TEXT NOT NULL,
-                FOREIGN KEY (student_competency_id) REFERENCES student_competency(id)
-            );
-        """)
-        # Migration douce si la table existait déjà sans la colonne 'declared'
-        try:
-            conn.execute("ALTER TABLE student_competency ADD COLUMN declared INTEGER NOT NULL DEFAULT 0")
-        except sqlite3.OperationalError:
-            pass
+    """Crée les tables du profil si elles n'existent pas. À appeler depuis api/db.py:init_db()."""
+    with get_db() as conn:
+        for statement in _SCHEMA_STATEMENTS:
+            conn.execute(statement)
+        # Migration douce si la table existait déjà sans la colonne 'declared'.
+        conn.execute("ALTER TABLE student_competency ADD COLUMN IF NOT EXISTS declared INTEGER NOT NULL DEFAULT 0")
 
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def get_competency(student_id: str, name: str) -> sqlite3.Row | None:
-    with _get_connection() as conn:
+def get_competency(student_id: str, name: str) -> dict | None:
+    with get_db() as conn:
         return conn.execute(
-            "SELECT * FROM student_competency WHERE student_id = ? AND name = ?",
+            "SELECT * FROM student_competency WHERE student_id = %s AND name = %s",
             (student_id, name),
         ).fetchone()
 
 
-def get_all_competencies(student_id: str, evaluated_only: bool = False) -> list[sqlite3.Row]:
-    with _get_connection() as conn:
+def get_all_competencies(student_id: str, evaluated_only: bool = False) -> list[dict]:
+    with get_db() as conn:
         if evaluated_only:
             return conn.execute(
-                "SELECT * FROM student_competency WHERE student_id = ? AND evaluation_count > 0",
+                "SELECT * FROM student_competency WHERE student_id = %s AND evaluation_count > 0",
                 (student_id,),
             ).fetchall()
         return conn.execute(
-            "SELECT * FROM student_competency WHERE student_id = ?",
+            "SELECT * FROM student_competency WHERE student_id = %s",
             (student_id,),
         ).fetchall()
 
 
 def get_or_create_competency(student_id: str, name: str, category: str = "autre",
-                               declared: bool = False) -> sqlite3.Row:
+                               declared: bool = False) -> dict:
     """Renvoie la compétence existante, ou la crée.
 
     declared=True ne s'applique qu'à la création : si la compétence existe déjà
@@ -98,11 +90,12 @@ def get_or_create_competency(student_id: str, name: str, category: str = "autre"
     if existing:
         return existing
 
-    with _get_connection() as conn:
+    with get_db() as conn:
         conn.execute(
             """INSERT INTO student_competency
                (student_id, name, category, current_score, evaluation_count, declared, updated_at)
-               VALUES (?, ?, ?, 0, 0, ?, ?)""",
+               VALUES (%s, %s, %s, 0, 0, %s, %s)
+               ON CONFLICT (student_id, name) DO NOTHING""",
             (student_id, name, category, int(declared), _now()),
         )
     return get_competency(student_id, name)
@@ -122,10 +115,10 @@ def seed_declared_competencies(student_id: str, names: list[str],
 
 
 def save_evaluation_history(student_competency_id: int, session_id: str, score: float, feedback: str = "") -> None:
-    with _get_connection() as conn:
+    with get_db() as conn:
         conn.execute(
             """INSERT INTO competency_evaluation (student_competency_id, session_id, score, feedback, created_at)
-               VALUES (?, ?, ?, ?, ?)""",
+               VALUES (%s, %s, %s, %s, %s)""",
             (student_competency_id, session_id, score, feedback, _now()),
         )
 
@@ -160,12 +153,12 @@ def update_profile_tree(student_id: str, session_id: str,
         else:
             updated_score = comp["current_score"] * (1 - RECENCY_WEIGHT) + new_score * RECENCY_WEIGHT
 
-        with _get_connection() as conn:
+        with get_db() as conn:
             conn.execute(
                 """UPDATE student_competency
-                   SET current_score = ?, evaluation_count = evaluation_count + 1,
-                       category = ?, updated_at = ?
-                   WHERE id = ?""",
+                   SET current_score = %s, evaluation_count = evaluation_count + 1,
+                       category = %s, updated_at = %s
+                   WHERE id = %s""",
                 (updated_score, category, _now(), comp["id"]),
             )
 
@@ -234,7 +227,7 @@ def get_competency_tree(student_id: str) -> dict:
 
 def finalize_interview_session(student_id: str, session_id: str,
                                  evaluation: dict, competency_metadata: dict[str, dict]) -> None:
-    """À appeler depuis app.py juste après interviewengine.generate_final_evaluation().
+    """À appeler depuis interview_routes.py juste après interviewengine.generate_final_evaluation().
 
     evaluation          : dict renvoyé par generate_final_evaluation()
                           ("par_competence": [{competence, score /10, commentaire}])

@@ -1,15 +1,5 @@
 const API_BASE_URL = '/api';
 
-function getCurrentUser() {
-    const stored = localStorage.getItem('mocklyUser');
-    if (!stored) return null;
-    try {
-        return JSON.parse(stored);
-    } catch (error) {
-        return null;
-    }
-}
-
 function el(id) {
     return document.getElementById(id);
 }
@@ -155,7 +145,6 @@ function renderBusinessForm(business) {
 
 async function saveBusinessMetrics(event) {
     event.preventDefault();
-    const user = getCurrentUser();
     const status = el('businessSaveStatus');
     const formData = new FormData(event.target);
     const metrics = {};
@@ -166,10 +155,10 @@ async function saveBusinessMetrics(event) {
 
     status.textContent = 'Enregistrement...';
     try {
-        const response = await fetch(`${API_BASE_URL}/admin/business-metrics`, {
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/admin/business-metrics`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_id: user.id, metrics }),
+            body: JSON.stringify({ metrics }),
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Erreur');
@@ -185,8 +174,8 @@ async function saveBusinessMetrics(event) {
 }
 
 async function loadKpis(opts = {}) {
-    const user = getCurrentUser();
-    if (!user || !user.is_admin) {
+    const me = await window.MocklyAuth.getCurrentUser();
+    if (!me || !me.user.is_admin) {
         el('adminLocked').classList.remove('hidden');
         el('adminContent').classList.add('hidden');
         return;
@@ -201,7 +190,7 @@ async function loadKpis(opts = {}) {
     }
 
     try {
-        const response = await fetch(`${API_BASE_URL}/admin/kpis?user_id=${encodeURIComponent(user.id)}`);
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/admin/kpis`);
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Impossible de charger les indicateurs');
 
@@ -251,17 +240,16 @@ function renderUsersTable(users) {
 }
 
 async function adjustCredit(userId, kind, stepperEl, delta) {
-    const admin = getCurrentUser();
     const currentValue = parseInt(stepperEl.querySelector('.credit-value').textContent, 10);
     const newValue = Math.max(0, currentValue + delta);
 
     stepperEl.querySelectorAll('button').forEach((b) => { b.disabled = true; });
 
     try {
-        const response = await fetch(`${API_BASE_URL}/admin/users/${userId}/credits`, {
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/admin/users/${userId}/credits`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_id: admin.id, [kind]: newValue }),
+            body: JSON.stringify({ [kind]: newValue }),
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Erreur');
@@ -279,12 +267,11 @@ async function adjustCredit(userId, kind, stepperEl, delta) {
 }
 
 async function openUsersModal() {
-    const admin = getCurrentUser();
     el('usersModalBackdrop').classList.remove('hidden');
     el('usersTableBody').innerHTML = '<tr><td colspan="7">Chargement...</td></tr>';
 
     try {
-        const response = await fetch(`${API_BASE_URL}/admin/users?user_id=${encodeURIComponent(admin.id)}`);
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/admin/users`);
         const users = await response.json();
         if (!response.ok) throw new Error(users.error || 'Erreur');
         renderUsersTable(users);
@@ -301,7 +288,7 @@ function renderSchoolsTable(schools) {
     el('schoolsTableBody').innerHTML = schools.map((s) => `
         <tr>
             <td>${escHtml(s.name)}</td>
-            <td>${escHtml(s.admin_email || '—')}</td>
+            <td>${escHtml(s.admin_email || s.pending_admin_email || '—')}${!s.admin_email && s.pending_admin_email ? ' <span class="admin-badge">en attente</span>' : ''}</td>
             <td>${s.nb_students}</td>
             <td>${escHtml((s.created_at || '').slice(0, 10))}</td>
             <td><button type="button" class="school-delete-btn" data-school="${s.id}" ${s.nb_students > 0 ? 'disabled title="Retire d\'abord les élèves de cette école"' : ''}>Supprimer</button></td>
@@ -314,10 +301,10 @@ function renderSchoolsTable(schools) {
 }
 
 async function loadSchools() {
-    const admin = getCurrentUser();
-    if (!admin || !admin.is_admin) return;
+    const me = await window.MocklyAuth.getCurrentUser();
+    if (!me || !me.user.is_admin) return;
     try {
-        const response = await fetch(`${API_BASE_URL}/admin/schools?user_id=${encodeURIComponent(admin.id)}`);
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/admin/schools`);
         const schools = await response.json();
         if (!response.ok) throw new Error(schools.error || 'Erreur');
         renderSchoolsTable(schools);
@@ -328,26 +315,25 @@ async function loadSchools() {
 
 async function createSchool(event) {
     event.preventDefault();
-    const admin = getCurrentUser();
     const status = el('schoolCreateStatus');
     const formData = new FormData(event.target);
 
     status.textContent = 'Création...';
     try {
-        const response = await fetch(`${API_BASE_URL}/admin/schools`, {
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/admin/schools`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                user_id: admin.id,
                 name: formData.get('name'),
                 admin_email: formData.get('admin_email'),
-                admin_password: formData.get('admin_password'),
             }),
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Erreur');
 
-        status.textContent = 'École créée ✅';
+        status.textContent = data.admin_invite?.status === 'pending'
+            ? `École créée ✅ — ${data.admin_invite.email} recevra le rôle "profil école" dès sa première connexion.`
+            : 'École créée ✅';
         event.target.reset();
         loadSchools();
     } catch (error) {
@@ -357,9 +343,8 @@ async function createSchool(event) {
 
 async function deleteSchool(schoolId) {
     if (!confirm('Supprimer cette école ?')) return;
-    const admin = getCurrentUser();
     try {
-        const response = await fetch(`${API_BASE_URL}/admin/schools/${schoolId}?user_id=${encodeURIComponent(admin.id)}`, {
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/admin/schools/${schoolId}`, {
             method: 'DELETE',
         });
         const data = await response.json();

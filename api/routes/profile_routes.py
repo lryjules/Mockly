@@ -1,44 +1,58 @@
-"""Routes de profil : informations pro, readiness-check, arbre de compétences."""
+"""Routes de profil : informations pro, readiness-check, arbre de compétences.
 
-from flask import Blueprint, request, jsonify
+Toutes ces routes agissent sur le profil de l'utilisateur Clerk authentifié
+(g.clerk_user_id) — jamais sur un user_id arbitraire passé par le client."""
+
+from flask import Blueprint, request, jsonify, g
 
 from api.db import get_db
 from api.user_helpers import get_informations_pro
 from api import profileprocessing
 from api import profile_engine
+from api.security import limiter, validate_length
+from api.clerk_auth import require_auth, get_or_create_local_user
 
 profile_bp = Blueprint("profile", __name__)
 
+MAX_PROFILE_FIELD_LEN = 300
+MAX_JOB_DESCRIPTION_LEN = 6000
 
-@profile_bp.route("/api/informations-pro/<user_id>", methods=["GET"])
-def get_informations_pro_route(user_id):
-    profile = get_informations_pro(user_id)
-    if profile is None:
-        return jsonify({"error": "Profil introuvable"}), 404
-    return jsonify({"profile": profile})
+
+@profile_bp.route("/api/informations-pro", methods=["GET"])
+@require_auth
+def get_informations_pro_route():
+    get_or_create_local_user(g.clerk_user_id)
+    profile = get_informations_pro(g.clerk_user_id)
+    return jsonify({"profile": profile or {}})
 
 
 @profile_bp.route("/api/informations-pro", methods=["POST"])
+@require_auth
 def save_informations_pro():
     data = request.get_json(force=True)
-    user_id = data.get("user_id")
     study_level = (data.get("studyLevel") or "").strip()
     target_domain = (data.get("targetDomain") or "").strip()
     current_goal = (data.get("currentGoal") or "").strip()
 
-    if not user_id:
-        return jsonify({"error": "user_id requis"}), 400
+    for field_name, field_value in (
+        ("studyLevel", study_level), ("targetDomain", target_domain), ("currentGoal", current_goal)
+    ):
+        if err := validate_length(field_value, field_name, MAX_PROFILE_FIELD_LEN):
+            return err
+
+    user_id = g.clerk_user_id
+    get_or_create_local_user(user_id)
 
     with get_db() as conn:
-        existing = conn.execute("SELECT id FROM informations_pro WHERE user_id=?", (user_id,)).fetchone()
+        existing = conn.execute("SELECT id FROM informations_pro WHERE user_id=%s", (user_id,)).fetchone()
         if existing:
             conn.execute(
-                "UPDATE informations_pro SET study_level=?, target_domain=?, current_goal=?, updated_at=datetime('now') WHERE user_id=?",
+                "UPDATE informations_pro SET study_level=%s, target_domain=%s, current_goal=%s, updated_at=to_char(now(), 'YYYY-MM-DD HH24:MI:SS') WHERE user_id=%s",
                 (study_level, target_domain, current_goal, user_id)
             )
         else:
             conn.execute(
-                "INSERT INTO informations_pro (user_id, study_level, target_domain, current_goal) VALUES (?,?,?,?)",
+                "INSERT INTO informations_pro (user_id, study_level, target_domain, current_goal) VALUES (%s,%s,%s,%s)",
                 (user_id, study_level, target_domain, current_goal)
             )
 
@@ -50,17 +64,21 @@ def save_informations_pro():
 
 
 @profile_bp.route("/api/profile/readiness-check", methods=["POST"])
+@require_auth
+@limiter.limit("20 per hour")
 def readiness_check():
     """Preview du score de préparation avant de lancer un entretien audio complet."""
     data = request.get_json(force=True)
-    user_id = data.get("user_id")
     job_description = (data.get("job_description") or "").strip()
 
-    if not user_id or not job_description:
-        return jsonify({"error": "user_id et job_description requis"}), 400
+    if not job_description:
+        return jsonify({"error": "job_description requis"}), 400
+    if err := validate_length(job_description, "job_description", MAX_JOB_DESCRIPTION_LEN):
+        return err
 
+    get_or_create_local_user(g.clerk_user_id)
     analysis = profileprocessing.analyze_job_posting(job_description)
-    readiness = profile_engine.compute_readiness_score(user_id, analysis["competencies"])
+    readiness = profile_engine.compute_readiness_score(g.clerk_user_id, analysis["competencies"])
 
     return jsonify({
         "job_title": analysis["job_title"],
@@ -69,7 +87,9 @@ def readiness_check():
     })
 
 
-@profile_bp.route("/api/profile/competencies/<user_id>", methods=["GET"])
-def get_profile_competencies(user_id):
+@profile_bp.route("/api/profile/competencies", methods=["GET"])
+@require_auth
+def get_profile_competencies():
     """Arbre de compétences complet, groupé par catégorie, pour la page 'Ma progression'."""
-    return jsonify(profile_engine.get_competency_tree(user_id))
+    get_or_create_local_user(g.clerk_user_id)
+    return jsonify(profile_engine.get_competency_tree(g.clerk_user_id))

@@ -1,13 +1,8 @@
 const API_BASE_URL = '/api';
 let authMode = 'signup';
-
-function escHtml(str) {
-    if (str === null || str === undefined) return '';
-    return String(str).replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
-}
 let onboardingStep = 0;
 let onboardingAnswers = {};
-let currentUser = null;
+let clerkMounted = false;
 
 const onboardingQuestions = [
     {
@@ -27,15 +22,87 @@ const onboardingQuestions = [
     }
 ];
 
-function initAuthPage() {
+function escHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str).replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
+}
+
+async function initAuthPage() {
     bindEvents();
     initChatScrollBehavior();
-    restoreSession();
-    loadSchoolsIntoSelect();
+
+    const Clerk = await window.MocklyAuth.clerkReady();
+    if (!Clerk) {
+        document.getElementById('authMessage')?.remove();
+        const panel = document.getElementById('authPanel');
+        panel.innerHTML = '<p class="auth-message">Authentification indisponible pour le moment. Réessaie plus tard.</p>';
+        return;
+    }
+
+    mountClerkWidgets(Clerk);
+
+    if (Clerk.user) {
+        await routeSignedInUser();
+    }
+}
+
+function mountClerkWidgets(Clerk) {
+    if (clerkMounted) return;
+    clerkMounted = true;
+
+    const redirectUrl = window.location.href.split('#')[0].split('?')[0];
+
+    Clerk.mountSignUp(document.getElementById('clerkSignUp'), {
+        afterSignUpUrl: redirectUrl,
+        signInUrl: redirectUrl,
+    });
+    Clerk.mountSignIn(document.getElementById('clerkSignIn'), {
+        afterSignInUrl: redirectUrl,
+        signUpUrl: redirectUrl,
+    });
+}
+
+function bindEvents() {
+    document.getElementById('showSignupTab').addEventListener('click', () => switchAuthMode('signup'));
+    document.getElementById('showLoginTab').addEventListener('click', () => switchAuthMode('login'));
+    document.getElementById('schoolForm').addEventListener('submit', handleSchoolSubmit);
+    document.getElementById('onboardingNext').addEventListener('click', handleOnboardingNext);
+    document.getElementById('goWorkspaceBtn').addEventListener('click', () => {
+        window.location.href = 'workspace.html';
+    });
+}
+
+function switchAuthMode(mode) {
+    authMode = mode;
+    document.getElementById('showSignupTab').classList.toggle('active', mode === 'signup');
+    document.getElementById('showLoginTab').classList.toggle('active', mode === 'login');
+    document.getElementById('clerkSignUpWrap').classList.toggle('hidden', mode !== 'signup');
+    document.getElementById('clerkSignInWrap').classList.toggle('hidden', mode !== 'login');
+}
+
+async function routeSignedInUser() {
+    const me = await window.MocklyAuth.getCurrentUser({ force: true });
+    if (!me || !me.user) return;
+
+    if (me.user.is_school_admin) {
+        window.location.href = '/school';
+        return;
+    }
+
+    if (!me.user.school_id) {
+        // Compte fraîchement créé (ou jamais complété) : Clerk ne connaît pas
+        // notre notion d'école, il faut la demander avant d'aller plus loin.
+        document.getElementById('authPanel').classList.add('hidden');
+        document.getElementById('schoolPanel').classList.remove('hidden');
+        loadSchoolsIntoSelect();
+        return;
+    }
+
+    window.location.href = 'workspace.html';
 }
 
 async function loadSchoolsIntoSelect() {
-    const select = document.getElementById('authSchool');
+    const select = document.getElementById('onboardingSchool');
     try {
         const response = await fetch(`${API_BASE_URL}/schools`);
         const schools = await response.json();
@@ -52,112 +119,39 @@ async function loadSchoolsIntoSelect() {
     }
 }
 
-function bindEvents() {
-    document.getElementById('showSignupTab').addEventListener('click', () => switchAuthMode('signup'));
-    document.getElementById('showLoginTab').addEventListener('click', () => switchAuthMode('login'));
-    document.getElementById('authForm').addEventListener('submit', handleAuthSubmit);
-    document.getElementById('onboardingNext').addEventListener('click', handleOnboardingNext);
-    document.getElementById('goWorkspaceBtn').addEventListener('click', () => {
-        window.location.href = 'workspace.html';
-    });
-}
-
-function restoreSession() {
-    const storedUser = localStorage.getItem('mocklyUser');
-    if (storedUser) {
-        try {
-            currentUser = JSON.parse(storedUser);
-            document.getElementById('authMessage').textContent = `Bienvenue ${currentUser.email}, connecte-toi pour accéder à ton workspace.`;
-        } catch (error) {
-            console.error(error);
-        }
-    }
-}
-
-function switchAuthMode(mode) {
-    authMode = mode;
-    const signupTab = document.getElementById('showSignupTab');
-    const loginTab = document.getElementById('showLoginTab');
-    const confirmGroup = document.getElementById('confirmPasswordGroup');
-    const schoolGroup = document.getElementById('schoolGroup');
-    const submitBtn = document.getElementById('authSubmitBtn');
-
-    signupTab.classList.toggle('active', mode === 'signup');
-    loginTab.classList.toggle('active', mode === 'login');
-    confirmGroup.classList.toggle('hidden', mode === 'login');
-    schoolGroup.classList.toggle('hidden', mode === 'login');
-    submitBtn.textContent = mode === 'signup' ? 'Créer mon compte' : 'Se connecter';
-    document.getElementById('authMessage').textContent = '';
-}
-
-async function handleAuthSubmit(event) {
+async function handleSchoolSubmit(event) {
     event.preventDefault();
+    const schoolId = document.getElementById('onboardingSchool').value;
+    const message = document.getElementById('schoolMessage');
+    const btn = document.getElementById('schoolSubmitBtn');
 
-    const email = document.getElementById('authEmail').value.trim();
-    const password = document.getElementById('authPassword').value;
-    const confirmPassword = document.getElementById('authConfirmPassword').value;
-    const schoolId = document.getElementById('authSchool').value;
-    const messageBox = document.getElementById('authMessage');
-
-    if (!email || !password) {
-        messageBox.textContent = 'Remplis l’adresse email et le mot de passe.';
+    if (!schoolId) {
+        message.textContent = 'Sélectionne ton école.';
         return;
     }
 
-    if (authMode === 'signup' && password !== confirmPassword) {
-        messageBox.textContent = 'La confirmation du mot de passe ne correspond pas.';
-        return;
-    }
-
-    if (authMode === 'signup' && !schoolId) {
-        messageBox.textContent = 'Sélectionne ton école.';
-        return;
-    }
-
-    const submitBtn = document.getElementById('authSubmitBtn');
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Chargement...';
-
+    btn.disabled = true;
+    btn.textContent = 'Enregistrement...';
     try {
-        const endpoint = authMode === 'signup' ? '/signup' : '/login';
-        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/me/school`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                email,
-                password,
-                confirmPassword: authMode === 'signup' ? confirmPassword : password,
-                school_id: authMode === 'signup' ? schoolId : undefined
-            })
+            body: JSON.stringify({ school_id: schoolId })
         });
-
         const data = await response.json();
-        if (!response.ok) {
-            throw new Error(data.error || 'Erreur d’authentification');
-        }
+        if (!response.ok) throw new Error(data.error || 'Erreur');
 
-        currentUser = data.user;
-        localStorage.setItem('mocklyUser', JSON.stringify(currentUser));
-
-        if (authMode === 'login') {
-            // L'échange avec Mockly n'a lieu qu'une fois, à la création du compte.
-            // Une connexion classique va donc directement au workspace — sauf les
-            // comptes école, qui n'ont pas de workspace personnel et vont sur leur
-            // tableau de bord de pool.
-            window.location.href = currentUser.is_school_admin ? '/school' : 'workspace.html';
-            return;
-        }
-
-        document.getElementById('authPanel').classList.add('hidden');
+        window.MocklyAuth.invalidateUserCache();
+        document.getElementById('schoolPanel').classList.add('hidden');
         document.getElementById('onboardingPanel').classList.remove('hidden');
         onboardingStep = 0;
         onboardingAnswers = {};
         renderOnboardingStep();
     } catch (error) {
-        messageBox.textContent = error.message;
+        message.textContent = error.message;
     } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = authMode === 'signup' ? 'Créer mon compte' : 'Se connecter';
+        btn.disabled = false;
+        btn.textContent = 'Continuer';
     }
 }
 
@@ -240,7 +234,7 @@ function renderOnboardingStep() {
         <div class="avatar assistant-avatar">🐼</div>
         <div class="bubble assistant-bubble">
             <strong>Mockly</strong>
-            <p>${step.question}</p>
+            <p>${escHtml(step.question)}</p>
         </div>
     `;
     thread.appendChild(bubble);
@@ -265,7 +259,7 @@ function handleOnboardingNext() {
     userBubble.className = 'message user';
     userBubble.innerHTML = `
         <div class="bubble user-bubble">
-            <p>${value}</p>
+            <p>${escHtml(value)}</p>
         </div>
     `;
     thread.appendChild(userBubble);
@@ -288,11 +282,10 @@ async function submitOnboardingProfile() {
     btn.textContent = 'Enregistrement...';
 
     try {
-        const response = await fetch(`${API_BASE_URL}/informations-pro`, {
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/informations-pro`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                user_id: currentUser?.id,
                 studyLevel: onboardingAnswers.studyLevel,
                 targetDomain: onboardingAnswers.targetDomain,
                 currentGoal: onboardingAnswers.currentGoal

@@ -2,6 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
+  <script src="clerk-auth.js"></script>
   <script src="auth-guard.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Mockly — Tableau de bord école</title>
@@ -144,9 +145,10 @@
 </head>
 <body>
   <nav class="app-nav">
+    <img src="assets/logo.png" class="nav-logo" alt="Mockly">
     <a href="/school" class="active">🏫 Tableau de bord école</a>
     <div class="nav-right">
-      <a href="auth.html" onclick="localStorage.removeItem('mocklyUser')">↪ Déconnexion</a>
+      <a href="auth.html" onclick="event.preventDefault(); window.MocklyAuth.signOut()">↪ Déconnexion</a>
     </div>
   </nav>
 

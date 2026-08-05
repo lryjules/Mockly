@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mockly — Accès personnalisé</title>
+    <link rel="icon" type="image/png" href="assets/logo.png">
     <link rel="stylesheet" href="styles.css">
+    <script src="clerk-auth.js"></script>
 </head>
 <body class="auth-page">
     <div class="auth-background">
@@ -17,6 +19,7 @@
 
     <div class="auth-shell">
         <section class="auth-hero">
+            <img src="assets/logo.png" class="auth-hero-logo" alt="Mockly">
             <div class="hero-badge">Mockly • IA employabilité</div>
             <h1>Bienvenue dans votre parcours de préparation.</h1>
             <p>Créez votre compte, personnalisez votre profil et laissez Mockly vous guider vers les bons entretiens.</p>
@@ -29,27 +32,21 @@
             </div>
 
             <div id="authPanel" class="auth-panel-step">
-                <form id="authForm" class="auth-form">
+                <div id="clerkSignUpWrap"><div id="clerkSignUp"></div></div>
+                <div id="clerkSignInWrap" class="hidden"><div id="clerkSignIn"></div></div>
+            </div>
+
+            <div id="schoolPanel" class="auth-panel-step hidden">
+                <form id="schoolForm" class="auth-form">
+                    <p class="auth-message" style="margin-bottom:0.5rem">Dernière étape : à quelle école appartiens-tu ?</p>
                     <label>
-                        Adresse email
-                        <input id="authEmail" type="email" required>
-                    </label>
-                    <label>
-                        Mot de passe
-                        <input id="authPassword" type="password" required>
-                    </label>
-                    <label id="confirmPasswordGroup">
-                        Confirmation du mot de passe
-                        <input id="authConfirmPassword" type="password">
-                    </label>
-                    <label id="schoolGroup">
                         École
-                        <select id="authSchool">
+                        <select id="onboardingSchool">
                             <option value="">Chargement des écoles...</option>
                         </select>
                     </label>
-                    <button id="authSubmitBtn" class="primary-btn full-width" type="submit">Créer mon compte</button>
-                    <p id="authMessage" class="auth-message"></p>
+                    <button id="schoolSubmitBtn" class="primary-btn full-width" type="submit">Continuer</button>
+                    <p id="schoolMessage" class="auth-message"></p>
                 </form>
             </div>
 

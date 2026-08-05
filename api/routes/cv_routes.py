@@ -4,12 +4,16 @@ import uuid
 import json
 from pathlib import Path
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, g
 
 from api.db import get_db, UPLOADS_DIR
 from api import ai_gateway
 from api import profile_engine
 from api import credits
+from api.security import limiter
+from api.clerk_auth import require_auth, get_or_create_local_user
+
+MAX_CV_SIZE = 8 * 1024 * 1024  # 8 Mo
 
 try:
     from pdfminer.high_level import extract_text as pdf_extract_text
@@ -112,6 +116,8 @@ Retourne exactement ce format JSON:
 
 
 @cv_bp.route("/api/upload-cv", methods=["POST"])
+@require_auth
+@limiter.limit("10 per hour")
 def upload_cv():
     if "file" not in request.files:
         return jsonify({"error": "Aucun fichier fourni"}), 400
@@ -124,9 +130,16 @@ def upload_cv():
     if ext not in (".pdf", ".docx"):
         return jsonify({"error": "Format non supporté. Utilisez PDF ou DOCX"}), 400
 
-    user_id = request.form.get("user_id") or None
-    if not user_id:
-        return jsonify({"error": "Connecte-toi pour déposer un CV"}), 401
+    file.stream.seek(0, 2)  # fin du flux
+    size = file.stream.tell()
+    file.stream.seek(0)
+    if size > MAX_CV_SIZE:
+        return jsonify({"error": "Fichier trop volumineux (max 8 Mo)"}), 413
+    if size == 0:
+        return jsonify({"error": "Fichier vide"}), 400
+
+    user_id = g.clerk_user_id
+    get_or_create_local_user(user_id)
     if not credits.consume_credit(user_id, "coach"):
         return jsonify({"error": "Crédits Coach épuisés. Contacte ton administrateur pour en obtenir davantage."}), 402
 
@@ -143,7 +156,7 @@ def upload_cv():
 
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO sessions (id, user_id, cv_filename, cv_text, cv_data, analysis) VALUES (?,?,?,?,?,?)",
+            "INSERT INTO sessions (id, user_id, cv_filename, cv_text, cv_data, analysis) VALUES (%s,%s,%s,%s,%s,%s)",
             (session_id, user_id, file.filename, cv_text, json.dumps(cv_data), json.dumps(analysis))
         )
 

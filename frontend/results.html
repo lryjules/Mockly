@@ -2,10 +2,12 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
+  <script src="clerk-auth.js"></script>
   <script src="auth-guard.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Interview Coach – Historique des sessions</title>
   <meta name="description" content="Consultez l'historique complet de vos sessions de préparation à l'entretien.">
+  <link rel="icon" type="image/png" href="assets/logo.png">
   <link rel="stylesheet" href="styles.css">
   <style>
     /* ── Overrides pour la page résultats (scroll autorisé) ── */
@@ -369,6 +371,7 @@
 
 <!-- Navigation style VS Code tabs -->
 <nav class="app-nav">
+  <a href="/" title="Accueil"><img src="assets/logo.png" class="nav-logo" alt="Mockly"></a>
   <a href="workspace.html">📄 Coach</a>
   <a href="/interview">🎙️ Interview</a>
   <a href="/profile">📈 Ma progression</a>
@@ -377,7 +380,7 @@
   <div class="nav-right">
     <span class="nav-badge" id="totalBadge">...</span>
     <a href="/admin" class="admin-nav-link hidden">🛡️ Admin</a>
-    <a href="auth.html" onclick="localStorage.removeItem('mocklyUser')">↪ Déconnexion</a>
+    <a href="auth.html" onclick="event.preventDefault(); window.MocklyAuth.signOut()">↪ Déconnexion</a>
   </div>
 </nav>
 
@@ -390,7 +393,7 @@
       <button class="refresh-btn" id="refreshBtn" title="Rafraîchir">↻</button>
     </div>
     <div class="sessions-list" id="sessionsList">
-      <div class="loading-state"><div class="spinner"></div></div>
+      <div class="loading-state" id="sessionsListInitialLoader"></div>
     </div>
   </aside>
 
@@ -405,18 +408,9 @@
   </main>
 </div>
 
+<script src="mockly-loader.js"></script>
 <script>
 const API = '/api';
-
-function getCurrentUser() {
-  const stored = localStorage.getItem('mocklyUser');
-  if (!stored) return null;
-  try {
-    return JSON.parse(stored);
-  } catch (error) {
-    return null;
-  }
-}
 
 function formatDate(iso) {
   if (!iso) return '—';
@@ -442,8 +436,8 @@ function scoreBadgeClass(s) {
 }
 
 async function loadSessions() {
-  const user = getCurrentUser();
-  if (!user) {
+  const me = await window.MocklyAuth.getCurrentUser();
+  if (!me) {
     document.getElementById('sessionCount').textContent = '';
     document.getElementById('totalBadge').textContent = '';
     document.getElementById('sessionsList').innerHTML = `
@@ -451,9 +445,9 @@ async function loadSessions() {
     return;
   }
 
-  document.getElementById('sessionsList').innerHTML = `<div class="loading-state"><div class="spinner"></div></div>`;
+  document.getElementById('sessionsList').innerHTML = `<div class="loading-state">${mocklyLoader('lg')}</div>`;
   try {
-    const res = await fetch(`${API}/sessions?user_id=${encodeURIComponent(user.id)}`);
+    const res = await window.MocklyAuth.fetchAuthed(`${API}/sessions`);
     const sessions = await res.json();
     document.getElementById('sessionCount').textContent = sessions.length;
     document.getElementById('totalBadge').textContent = `${sessions.length} session${sessions.length > 1 ? 's' : ''}`;
@@ -486,11 +480,10 @@ async function selectSession(sessionId) {
   document.querySelector(`.session-item[data-id="${sessionId}"]`)?.classList.add('active');
 
   const panel = document.getElementById('detailPanel');
-  panel.innerHTML = `<div class="loading-state"><div class="spinner"></div><span>Chargement...</span></div>`;
+  panel.innerHTML = `<div class="loading-state">${mocklyLoader('lg')}<span>Chargement...</span></div>`;
 
   try {
-    const user = getCurrentUser();
-    const res = await fetch(`${API}/sessions/${sessionId}?user_id=${encodeURIComponent(user?.id || '')}`);
+    const res = await window.MocklyAuth.fetchAuthed(`${API}/sessions/${sessionId}`);
     const data = await res.json();
     renderDetail(data);
   } catch {

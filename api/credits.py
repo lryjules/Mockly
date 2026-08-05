@@ -20,7 +20,7 @@ CREDIT_COLUMNS = {"interview": "interview_credits", "coach": "coach_credits"}
 def get_credits(user_id: str) -> dict | None:
     with get_db() as conn:
         row = conn.execute(
-            "SELECT interview_credits, coach_credits FROM users WHERE id=?", (user_id,)
+            "SELECT interview_credits, coach_credits FROM users WHERE id=%s", (user_id,)
         ).fetchone()
     if not row:
         return None
@@ -43,7 +43,7 @@ def consume_credit(user_id: str, kind: str) -> bool:
     column = CREDIT_COLUMNS[kind]
     with get_db() as conn:
         cursor = conn.execute(
-            f"UPDATE users SET {column} = {column} - 1 WHERE id=? AND {column} > 0",
+            f"UPDATE users SET {column} = {column} - 1 WHERE id=%s AND {column} > 0",
             (user_id,)
         )
         return cursor.rowcount > 0

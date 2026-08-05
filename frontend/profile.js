@@ -9,16 +9,6 @@ const CATEGORY_LABELS = {
 
 const CATEGORY_ORDER = ['technique', 'métier', 'soft_skill', 'autre'];
 
-function getCurrentUser() {
-    const stored = localStorage.getItem('mocklyUser');
-    if (!stored) return null;
-    try {
-        return JSON.parse(stored);
-    } catch (error) {
-        return null;
-    }
-}
-
 function escHtml(str) {
     if (!str) return '';
     return String(str).replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
@@ -68,14 +58,14 @@ function renderTree(tree) {
 }
 
 async function loadProfile() {
-    const user = getCurrentUser();
-    if (!user) {
+    const me = await window.MocklyAuth.getCurrentUser();
+    if (!me) {
         document.getElementById('profileLocked').classList.remove('hidden');
         return;
     }
 
     try {
-        const response = await fetch(`${API_BASE_URL}/profile/competencies/${encodeURIComponent(user.id)}`);
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/profile/competencies`);
         const tree = await response.json();
         renderTree(tree);
     } catch (error) {

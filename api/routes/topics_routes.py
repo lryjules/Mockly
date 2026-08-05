@@ -7,10 +7,14 @@ from flask import Blueprint, request, jsonify
 from api.db import get_db
 from api import ai_gateway
 from api.user_helpers import get_informations_pro_for_session
+from api.security import limiter, validate_length
+from api.clerk_auth import require_auth, session_owned_by_current_user
 
 topics_bp = Blueprint("topics", __name__)
 
 ai_call = ai_gateway.ai_call
+
+MAX_FIELD_LEN = 200
 
 
 def generate_topics_with_ai(cv_data: dict, sector: str, company: str, role: str,
@@ -67,18 +71,25 @@ Réponds UNIQUEMENT en JSON valide sans markdown:
 
 
 @topics_bp.route("/api/generate-interview-topics", methods=["POST"])
+@require_auth
+@limiter.limit("20 per hour")
 def generate_interview_topics():
     data = request.get_json(force=True)
     session_id = data.get("session_id")
     sector     = data.get("sector", "").strip()
-    company    = data.get("company", "") or ""
-    role       = data.get("role", "") or ""
+    company    = (data.get("company", "") or "").strip()
+    role       = (data.get("role", "") or "").strip()
 
     if not session_id or not sector:
         return jsonify({"error": "session_id et sector sont requis"}), 400
+    for field_name, field_value in (("sector", sector), ("company", company), ("role", role)):
+        if err := validate_length(field_value, field_name, MAX_FIELD_LEN):
+            return err
 
     with get_db() as conn:
-        row = conn.execute("SELECT cv_data FROM sessions WHERE id=?", (session_id,)).fetchone()
+        if not session_owned_by_current_user(conn, session_id):
+            return jsonify({"error": "Session introuvable"}), 404
+        row = conn.execute("SELECT cv_data FROM sessions WHERE id=%s", (session_id,)).fetchone()
 
     if not row:
         return jsonify({"error": "Session introuvable"}), 404
@@ -97,7 +108,7 @@ def generate_interview_topics():
 
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO generations (session_id, sector, company, role, topics) VALUES (?,?,?,?,?)",
+            "INSERT INTO generations (session_id, sector, company, role, topics) VALUES (%s,%s,%s,%s,%s)",
             (session_id, sector, company, role, json.dumps(topics))
         )
 

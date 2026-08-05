@@ -1,14 +1,21 @@
 // API Configuration
 const API_BASE_URL = '/api';
 
+// getWorkspaceStorageKey() (et tout ce qui en dépend : save/load/clear/restore
+// du workspace) est appelé de façon synchrone dans tout ce fichier, mais
+// l'identité Clerk ne se résout qu'en asynchrone — d'où ce cache local, rempli
+// une fois au chargement de la page (voir DOMContentLoaded plus bas) avant que
+// quoi que ce soit d'autre ne s'exécute.
+let cachedCurrentUser = null;
+
 function getCurrentUser() {
-    const stored = localStorage.getItem('mocklyUser');
-    if (!stored) return null;
-    try {
-        return JSON.parse(stored);
-    } catch (error) {
-        return null;
-    }
+    return cachedCurrentUser;
+}
+
+async function ensureCurrentUser() {
+    const me = await window.MocklyAuth.getCurrentUser();
+    cachedCurrentUser = me ? me.user : null;
+    return cachedCurrentUser;
 }
 
 // State management
@@ -178,7 +185,8 @@ function restoreWorkspaceState() {
 }
 
 // Initialize app
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    await ensureCurrentUser();
     setupEventListeners();
     initializeCanvas();
     restoreWorkspaceState();
@@ -315,16 +323,12 @@ async function handleFileUpload(e) {
 
     const formData = new FormData();
     formData.append('file', file);
-    const currentUser = getCurrentUser();
-    if (currentUser) {
-        formData.append('user_id', currentUser.id);
-    }
 
     const uploadZone = document.getElementById('uploadZone');
-    uploadZone.innerHTML = '<div class="loading"><div class="spinner"></div><span>Analyse en cours...</span></div>';
+    uploadZone.innerHTML = `<div class="loading">${mocklyLoader()}<span>Analyse en cours...</span></div>`;
 
     try {
-        const response = await fetch(`${API_BASE_URL}/upload-cv`, {
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/upload-cv`, {
             method: 'POST',
             body: formData
         });
@@ -474,11 +478,11 @@ async function generateMindMap() {
 
     const btn = document.getElementById('generateBtn');
     btn.disabled = true;
-    btn.innerHTML = '<div class="loading"><div class="spinner"></div><span>Génération...</span></div>';
+    btn.innerHTML = `<div class="loading">${mocklyLoader()}<span>Génération...</span></div>`;
 
     try {
         // Generate interview topics
-        const response = await fetch(`${API_BASE_URL}/generate-interview-topics`, {
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/generate-interview-topics`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -863,7 +867,7 @@ async function openChat(node) {
 
     // Initialize chat
     try {
-        const response = await fetch(`${API_BASE_URL}/start-chat`, {
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/start-chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ session_id: appState.sessionId })
@@ -892,7 +896,7 @@ async function sendChatMessage() {
     sendBtn.disabled = true;
 
     try {
-        const response = await fetch(`${API_BASE_URL}/chat`, {
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1129,7 +1133,7 @@ async function submitResponse(responseNode, userResponse, nodeEl) {
     textarea.disabled = true;
 
     try {
-        const response = await fetch(`${API_BASE_URL}/evaluate-response`, {
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/evaluate-response`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

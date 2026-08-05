@@ -2,18 +2,22 @@
 
 import json
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, g
 
 from api.db import get_db
 from api import ai_gateway
 from api import ai_logging
 from api import profile_engine
+from api.security import limiter, validate_length
+from api.clerk_auth import require_auth, session_owned_by_current_user
 
 chat_bp = Blueprint("chat", __name__)
 
 ai_call = ai_gateway.ai_call
 
 VALID_CATEGORIES = {"technique", "métier", "soft_skill"}
+MAX_MESSAGE_LEN = 4000
+MAX_RESPONSE_LEN = 6000
 
 
 def evaluate_response_with_ai(cv_data: dict, question: str, user_response: str,
@@ -54,6 +58,8 @@ Réponds UNIQUEMENT en JSON valide sans markdown:
 
 
 @chat_bp.route("/api/start-chat", methods=["POST"])
+@require_auth
+@limiter.limit("30 per hour")
 def start_chat():
     data = request.get_json(force=True)
     session_id = data.get("session_id")
@@ -62,7 +68,9 @@ def start_chat():
         return jsonify({"error": "session_id requis"}), 400
 
     with get_db() as conn:
-        row = conn.execute("SELECT cv_data, analysis FROM sessions WHERE id=?", (session_id,)).fetchone()
+        if not session_owned_by_current_user(conn, session_id):
+            return jsonify({"error": "Session introuvable"}), 404
+        row = conn.execute("SELECT cv_data, analysis FROM sessions WHERE id=%s", (session_id,)).fetchone()
 
     if not row:
         return jsonify({"error": "Session introuvable"}), 404
@@ -78,7 +86,7 @@ def start_chat():
 
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO chat_messages (session_id, role, content) VALUES (?,?,?)",
+            "INSERT INTO chat_messages (session_id, role, content) VALUES (%s,%s,%s)",
             (session_id, "assistant", greeting)
         )
 
@@ -86,6 +94,8 @@ def start_chat():
 
 
 @chat_bp.route("/api/chat", methods=["POST"])
+@require_auth
+@limiter.limit("30 per hour")
 def chat():
     data = request.get_json(force=True)
     session_id = data.get("session_id")
@@ -93,11 +103,15 @@ def chat():
 
     if not session_id or not message:
         return jsonify({"error": "session_id et message requis"}), 400
+    if err := validate_length(message, "message", MAX_MESSAGE_LEN):
+        return err
 
     with get_db() as conn:
-        session_row = conn.execute("SELECT cv_data, analysis FROM sessions WHERE id=?", (session_id,)).fetchone()
+        if not session_owned_by_current_user(conn, session_id):
+            return jsonify({"error": "Session introuvable"}), 404
+        session_row = conn.execute("SELECT cv_data, analysis FROM sessions WHERE id=%s", (session_id,)).fetchone()
         history = conn.execute(
-            "SELECT role, content FROM chat_messages WHERE session_id=? ORDER BY created_at",
+            "SELECT role, content FROM chat_messages WHERE session_id=%s ORDER BY created_at",
             (session_id,)
         ).fetchall()
 
@@ -144,11 +158,11 @@ Ne renvoie que le texte de ta réponse, sans JSON.
 
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO chat_messages (session_id, role, content) VALUES (?,?,?)",
+            "INSERT INTO chat_messages (session_id, role, content) VALUES (%s,%s,%s)",
             (session_id, "user", message)
         )
         conn.execute(
-            "INSERT INTO chat_messages (session_id, role, content) VALUES (?,?,?)",
+            "INSERT INTO chat_messages (session_id, role, content) VALUES (%s,%s,%s)",
             (session_id, "assistant", reply)
         )
 
@@ -156,6 +170,8 @@ Ne renvoie que le texte de ta réponse, sans JSON.
 
 
 @chat_bp.route("/api/evaluate-response", methods=["POST"])
+@require_auth
+@limiter.limit("30 per hour")
 def evaluate_response():
     data = request.get_json(force=True)
     session_id = data.get("session_id")
@@ -164,9 +180,15 @@ def evaluate_response():
 
     if not session_id or not question or not user_response:
         return jsonify({"error": "session_id, question et response requis"}), 400
+    if err := validate_length(question, "question", MAX_MESSAGE_LEN):
+        return err
+    if err := validate_length(user_response, "response", MAX_RESPONSE_LEN):
+        return err
 
     with get_db() as conn:
-        row = conn.execute("SELECT cv_data FROM sessions WHERE id=?", (session_id,)).fetchone()
+        if not session_owned_by_current_user(conn, session_id):
+            return jsonify({"error": "Session introuvable"}), 404
+        row = conn.execute("SELECT cv_data FROM sessions WHERE id=%s", (session_id,)).fetchone()
 
     if not row:
         return jsonify({"error": "Session introuvable"}), 404
@@ -178,14 +200,14 @@ def evaluate_response():
         conn.execute(
             """INSERT INTO evaluations
                (session_id, question, user_response, score, evaluation_json)
-               VALUES (?,?,?,?,?)""",
+               VALUES (%s,%s,%s,%s,%s)""",
             (
                 session_id, question, user_response,
                 evaluation.get("score"),
                 json.dumps(evaluation, ensure_ascii=False)
             )
         )
-        session_row = conn.execute("SELECT user_id FROM sessions WHERE id=?", (session_id,)).fetchone()
+        session_row = conn.execute("SELECT user_id FROM sessions WHERE id=%s", (session_id,)).fetchone()
 
     # Branche cette évaluation sur l'arbre de compétences de l'étudiant, si connecté.
     competence = (evaluation.get("competence_ciblee") or "").strip()
