@@ -52,12 +52,24 @@ function mountClerkWidgets(Clerk) {
 
     const redirectUrl = window.location.href.split('#')[0].split('?')[0];
 
-    Clerk.mountSignUp(document.getElementById('clerkSignUp'), {
+    // On veut TOUJOURS revenir sur cette page après auth (jamais sur les
+    // "default redirect URLs" du dashboard Clerk, qui pointent sur "/" par
+    // défaut) pour laisser routeSignedInUser() gérer la suite (choix d'école,
+    // onboarding, puis redirection finale). Le nom de cette option a changé
+    // entre les versions de clerk-js (v4: afterSignUpUrl/afterSignInUrl,
+    // v5: forceRedirectUrl) — on passe les deux jeux de props, celui que
+    // cette instance ne reconnaît pas est simplement ignoré.
+    const redirectProps = {
+        forceRedirectUrl: redirectUrl,
         afterSignUpUrl: redirectUrl,
+        afterSignInUrl: redirectUrl,
+    };
+    Clerk.mountSignUp(document.getElementById('clerkSignUp'), {
+        ...redirectProps,
         signInUrl: redirectUrl,
     });
     Clerk.mountSignIn(document.getElementById('clerkSignIn'), {
-        afterSignInUrl: redirectUrl,
+        ...redirectProps,
         signUpUrl: redirectUrl,
     });
 }

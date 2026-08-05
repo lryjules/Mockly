@@ -12,6 +12,28 @@
 
 const MOCKLY_API_BASE_URL = '/api';
 
+// Reprend la palette sombre de l'app (styles.css --vscode-*) pour que les
+// composants Clerk (SignIn/SignUp) ne détonnent pas avec un encart blanc.
+const MOCKLY_CLERK_APPEARANCE = {
+    variables: {
+        colorPrimary: '#569cd6',
+        colorBackground: '#252526',
+        colorInputBackground: '#1e1e1e',
+        colorInputText: '#d4d4d4',
+        colorText: '#d4d4d4',
+        colorTextSecondary: '#858585',
+        colorNeutral: '#d4d4d4',
+        colorDanger: '#ff6b6b',
+        colorSuccess: '#6a9955',
+        borderRadius: '0.6rem',
+        fontFamily: 'inherit',
+    },
+    elements: {
+        card: { boxShadow: 'none', border: '1px solid #3e3e42' },
+        rootBox: { width: '100%' },
+    },
+};
+
 function _frontendApiFromPublishableKey(pk) {
     const b64 = pk.replace(/^pk_(test|live)_/, '');
     const decoded = atob(b64);
@@ -48,7 +70,7 @@ function clerkReady() {
             return null;
         }
         const Clerk = await _loadClerkScript(config.clerk_publishable_key);
-        await Clerk.load();
+        await Clerk.load({ appearance: MOCKLY_CLERK_APPEARANCE });
         return Clerk;
     })();
     return _clerkReadyPromise;

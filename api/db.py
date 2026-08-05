@@ -61,8 +61,21 @@ def get_db() -> psycopg.Connection[Row]:
             "(Supabase > Project Settings > Database > Connection string, mode "
             "'Session pooler') dans les variables d'environnement."
         )
-    conn = psycopg.connect(DATABASE_URL, row_factory=_flex_row_factory, autocommit=False)
-    return conn
+    try:
+        return psycopg.connect(
+            DATABASE_URL, row_factory=_flex_row_factory, autocommit=False, connect_timeout=10
+        )
+    except psycopg.OperationalError as e:
+        # Cas fréquent : DATABASE_URL pointe sur la connexion "Direct" de
+        # Supabase (db.<ref>.supabase.co), qui ne résout qu'en IPv6 — injoignable
+        # depuis un hébergeur (ex. Render) sans sortie IPv6. Le "Session pooler"
+        # (host ...pooler.supabase.com) résout en IPv4 et règle le problème.
+        raise RuntimeError(
+            "Connexion à la base impossible (réseau injoignable). Si l'URL pointe "
+            "sur 'db.<ref>.supabase.co' (connexion directe, IPv6 uniquement), "
+            "utilise plutôt le 'Session pooler' de Supabase (host "
+            "'...pooler.supabase.com'), compatible IPv4."
+        ) from e
 
 
 # Chaque instruction séparément (pas un gros script exécuté d'un coup) :
