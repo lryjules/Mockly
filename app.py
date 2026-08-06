@@ -110,6 +110,13 @@ app.register_blueprint(admin_bp)
 app.register_blueprint(school_bp)
 app.register_blueprint(pages_bp)  # toujours en dernier : contient la route catch-all "/<path:path>"
 
+# pages_bp sert le HTML/CSS/JS statique (et le catch-all) : jamais de raison
+# de le rate-limiter comme les endpoints /api/*, sous peine qu'un simple
+# rechargement de page (plusieurs fichiers requêtés d'un coup) déclenche des
+# 429 sur des .css/.js — le navigateur les reçoit alors avec un
+# Content-Type JSON et refuse de les appliquer/exécuter.
+limiter.exempt(pages_bp)
+
 # Doit s'exécuter à l'import du module, pas seulement sous __main__ : gunicorn
 # (utilisé en prod, ex. sur Render) importe `app` sans jamais passer par le
 # bloc __main__ ci-dessous, donc les tables ne seraient jamais créées sinon.
