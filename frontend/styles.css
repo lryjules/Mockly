@@ -97,11 +97,20 @@ body {
 }
 
 .sidebar-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
     font-size: 0.875rem;
     font-weight: 600;
     color: var(--vscode-text-bright);
     text-transform: uppercase;
     letter-spacing: 0.5px;
+}
+
+.sidebar-logo {
+    width: 22px;
+    height: auto;
+    flex-shrink: 0;
 }
 
 .sidebar-section {
@@ -148,6 +157,86 @@ body {
     color: var(--vscode-text-muted);
 }
 
+/* Contexte d'entretien */
+.context-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.context-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    font-size: 0.75rem;
+    color: var(--vscode-text-muted);
+}
+
+.context-field input {
+    width: 100%;
+    padding: 0.5rem;
+    background: var(--vscode-line);
+    border: 1px solid var(--vscode-border);
+    border-radius: 4px;
+    color: var(--vscode-text);
+    font-size: 0.875rem;
+    font-family: inherit;
+    transition: var(--transition);
+}
+
+.context-field input:focus {
+    outline: none;
+    border-color: var(--vscode-blue);
+    background: var(--vscode-bg);
+}
+
+.generate-btn {
+    padding: 0.75rem;
+    background: var(--vscode-blue);
+    border: none;
+    border-radius: 4px;
+    color: white;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 600;
+    font-family: inherit;
+    transition: var(--transition);
+}
+
+.generate-btn:hover:not(:disabled) {
+    background: #4a8bc2;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(86, 156, 214, 0.25);
+}
+
+.generate-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+/* Légende */
+.legend-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    font-size: 0.75rem;
+}
+
+.legend-row {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    color: var(--vscode-text);
+}
+
+.legend-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.04);
+}
+
 /* Main Canvas */
 .canvas-container {
     flex: 1;
@@ -166,6 +255,44 @@ body {
 
 .canvas.grabbing {
     cursor: grabbing;
+}
+
+/* État vide du canvas : visible tant qu'aucun CV n'a été déposé. */
+.canvas-empty-state {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(360px, 80%);
+    text-align: center;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.canvas-empty-logo {
+    width: 56px;
+    height: auto;
+    margin-bottom: 1.25rem;
+    opacity: 0.55;
+    animation: emptyStateFloat 3.5s ease-in-out infinite;
+}
+
+.canvas-empty-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--vscode-text-bright);
+    margin-bottom: 0.5rem;
+}
+
+.canvas-empty-text {
+    font-size: 0.8125rem;
+    color: var(--vscode-text-muted);
+    line-height: 1.6;
+}
+
+@keyframes emptyStateFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
 }
 
 /* SVG pour les connexions */

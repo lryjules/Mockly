@@ -93,6 +93,14 @@ function loadWorkspaceState() {
     }
 }
 
+// Bascule le message d'accueil du canvas (aucun CV encore déposé) et l'aide
+// de navigation (utile seulement une fois qu'il y a quelque chose à naviguer).
+function updateEmptyState() {
+    const hasNodes = appState.nodes.length > 0;
+    document.getElementById('canvasEmptyState').classList.toggle('hidden', hasNodes);
+    document.getElementById('navigationHint').classList.toggle('hidden', !hasNodes);
+}
+
 function clearWorkspace() {
     if (!confirm('Vider l\'espace de travail ? Le CV analysé, la carte mentale et tes réponses seront supprimés (uniquement de cet écran, pas de ton historique).')) {
         return;
@@ -122,7 +130,7 @@ function clearWorkspace() {
 
     const generateBtn = document.getElementById('generateBtn');
     generateBtn.disabled = false;
-    generateBtn.innerHTML = 'Générer la carte mentale';
+    generateBtn.innerHTML = '✨ Générer la carte mentale';
 
     document.getElementById('uploadZone').innerHTML = `
         <div class="upload-icon">📄</div>
@@ -139,6 +147,8 @@ function clearWorkspace() {
     `;
     document.getElementById('chatInput').disabled = true;
     document.getElementById('chatSend').disabled = true;
+
+    updateEmptyState();
 }
 
 // Reconstruit la carte mentale (nœuds + connexions) à partir de l'état sauvegardé,
@@ -190,6 +200,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupEventListeners();
     initializeCanvas();
     restoreWorkspaceState();
+    updateEmptyState();
 });
 
 function setupEventListeners() {
@@ -392,6 +403,7 @@ function createRootNode() {
 
     appState.nodes.push(rootNode);
     renderNode(rootNode);
+    updateEmptyState();
 }
 
 function createInitialClouds() {
@@ -506,7 +518,7 @@ async function generateMindMap() {
     } catch (error) {
         alert('Erreur: ' + error.message);
         btn.disabled = false;
-        btn.innerHTML = 'Générer la carte mentale';
+        btn.innerHTML = '✨ Générer la carte mentale';
     }
 }
 

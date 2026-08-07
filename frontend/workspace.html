@@ -29,7 +29,7 @@
         <!-- Sidebar -->
         <div class="sidebar">
             <div class="sidebar-header">
-                <div class="sidebar-title">🐼 Mockly</div>
+                <div class="sidebar-title"><img src="assets/logo.png" class="sidebar-logo" alt="">Mockly</div>
                 <button id="clearWorkspaceBtn" class="clear-workspace-btn" title="Vider l'espace de travail">🗑️ Vider</button>
             </div>
 
@@ -53,29 +53,21 @@
             <!-- Context Section -->
             <div class="sidebar-section hidden" id="contextSection">
                 <div class="section-title">2. Contexte d'entretien</div>
-                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-                    <div>
-                        <label
-                            style="font-size: 0.75rem; color: var(--vscode-text-muted); display: block; margin-bottom: 0.25rem;">Secteur
-                            *</label>
-                        <input type="text" id="sectorInput" placeholder="Ex: Technologie"
-                            style="width: 100%; padding: 0.5rem; background: var(--vscode-line); border: 1px solid var(--vscode-border); border-radius: 4px; color: var(--vscode-text); font-size: 0.875rem;">
-                    </div>
-                    <div>
-                        <label
-                            style="font-size: 0.75rem; color: var(--vscode-text-muted); display: block; margin-bottom: 0.25rem;">Entreprise</label>
-                        <input type="text" id="companyInput" placeholder="Ex: Google"
-                            style="width: 100%; padding: 0.5rem; background: var(--vscode-line); border: 1px solid var(--vscode-border); border-radius: 4px; color: var(--vscode-text); font-size: 0.875rem;">
-                    </div>
-                    <div>
-                        <label
-                            style="font-size: 0.75rem; color: var(--vscode-text-muted); display: block; margin-bottom: 0.25rem;">Poste</label>
-                        <input type="text" id="roleInput" placeholder="Ex: Développeur"
-                            style="width: 100%; padding: 0.5rem; background: var(--vscode-line); border: 1px solid var(--vscode-border); border-radius: 4px; color: var(--vscode-text); font-size: 0.875rem;">
-                    </div>
-                    <button id="generateBtn"
-                        style="padding: 0.75rem; background: var(--vscode-blue); border: none; border-radius: 4px; color: white; cursor: pointer; font-size: 0.875rem;">
-                        Générer la carte mentale
+                <div class="context-form">
+                    <label class="context-field">
+                        Secteur *
+                        <input type="text" id="sectorInput" placeholder="Ex: Technologie">
+                    </label>
+                    <label class="context-field">
+                        Entreprise
+                        <input type="text" id="companyInput" placeholder="Ex: Google">
+                    </label>
+                    <label class="context-field">
+                        Poste
+                        <input type="text" id="roleInput" placeholder="Ex: Développeur">
+                    </label>
+                    <button id="generateBtn" class="generate-btn">
+                        ✨ Générer la carte mentale
                     </button>
                 </div>
             </div>
@@ -83,30 +75,12 @@
             <!-- Legend -->
             <div class="sidebar-section">
                 <div class="section-title">Légende</div>
-                <div style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.75rem;">
-                    <div style="display: flex; align-items: center; gap: 0.5rem;">
-                        <div style="width: 16px; height: 16px; background: var(--node-cv); border-radius: 3px;"></div>
-                        <span>CV (Racine)</span>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 0.5rem;">
-                        <div style="width: 16px; height: 16px; background: var(--node-conseil); border-radius: 3px;">
-                        </div>
-                        <span>Conseils</span>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 0.5rem;">
-                        <div style="width: 16px; height: 16px; background: var(--node-question); border-radius: 3px;">
-                        </div>
-                        <span>Questions</span>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 0.5rem;">
-                        <div style="width: 16px; height: 16px; background: var(--node-secteur); border-radius: 3px;">
-                        </div>
-                        <span>Secteurs</span>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 0.5rem;">
-                        <div style="width: 16px; height: 16px; background: var(--node-chat); border-radius: 3px;"></div>
-                        <span>Coach IA</span>
-                    </div>
+                <div class="legend-list">
+                    <div class="legend-row"><span class="legend-swatch" style="background: var(--node-cv);"></span>CV (Racine)</div>
+                    <div class="legend-row"><span class="legend-swatch" style="background: var(--node-conseil);"></span>Conseils</div>
+                    <div class="legend-row"><span class="legend-swatch" style="background: var(--node-question);"></span>Questions</div>
+                    <div class="legend-row"><span class="legend-swatch" style="background: var(--node-secteur);"></span>Secteurs</div>
+                    <div class="legend-row"><span class="legend-swatch" style="background: var(--node-chat);"></span>Coach IA</div>
                 </div>
             </div>
         </div>
@@ -116,6 +90,13 @@
             <svg class="connections-svg" id="connectionsSvg"></svg>
             <div class="canvas" id="canvas">
                 <!-- Les nodes seront ajoutés dynamiquement ici -->
+            </div>
+
+            <!-- État vide : visible tant qu'aucun CV n'a été déposé -->
+            <div class="canvas-empty-state" id="canvasEmptyState">
+                <img src="assets/logo.png" class="canvas-empty-logo" alt="">
+                <div class="canvas-empty-title">Ta carte mentale apparaîtra ici</div>
+                <div class="canvas-empty-text">Dépose ton CV dans le panneau de gauche pour que Mockly l'analyse et construise ta préparation autour.</div>
             </div>
 
             <!-- Controls -->
@@ -128,8 +109,8 @@
                 <button class="control-btn" id="openChatBtn" title="Ouvrir le Coach IA">💬</button>
             </div>
 
-            <!-- Navigation hint -->
-            <div class="navigation-hint">
+            <!-- Navigation hint : seulement utile une fois qu'il y a quelque chose à naviguer -->
+            <div class="navigation-hint hidden" id="navigationHint">
                 💡 <strong>Navigation:</strong> Molette = Zoom | Clic + Glisser = Déplacer | Clic sur nuage = Déplacer
                 nuage
             </div>

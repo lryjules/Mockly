@@ -87,7 +87,7 @@ def list_users():
             LEFT JOIN schools sc ON sc.id = u.school_id
             LEFT JOIN sessions s ON s.user_id = u.id
             LEFT JOIN job_interviews ji ON ji.user_id = u.id
-            GROUP BY u.id
+            GROUP BY u.id, sc.name
             ORDER BY u.created_at DESC
         """).fetchall()
 
@@ -111,7 +111,7 @@ def list_schools():
             LEFT JOIN users u ON u.school_id = sc.id
             LEFT JOIN users admin_u ON admin_u.school_id = sc.id AND admin_u.is_school_admin = 1
             LEFT JOIN school_admin_invites inv ON inv.school_id = sc.id
-            GROUP BY sc.id
+            GROUP BY sc.id, admin_u.id, admin_u.email, inv.email
             ORDER BY sc.name
         """).fetchall()
 
