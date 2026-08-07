@@ -68,6 +68,14 @@ function mountClerkWidgets(Clerk) {
         forceRedirectUrl: redirectUrl,
         afterSignUpUrl: redirectUrl,
         afterSignInUrl: redirectUrl,
+        // routing:'virtual' (pas 'path', la valeur par défaut) : notre app est
+        // une page statique unique, pas un routeur front qui sait servir des
+        // sous-chemins comme /auth.html/verify-email-address. En 'path', Clerk
+        // ne trouve nulle part où afficher une étape multi-facteurs (ex: code
+        // email) et bascule vers son propre portail hébergé (accounts.dev) —
+        // 'virtual' force Clerk à gérer toutes les étapes DANS le widget,
+        // sans jamais changer d'URL.
+        routing: 'virtual',
     };
     Clerk.mountSignUp(document.getElementById('clerkSignUp'), {
         ...redirectProps,
