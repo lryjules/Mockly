@@ -2,7 +2,8 @@ const API_BASE_URL = '/api';
 let authMode = 'signup';
 let onboardingStep = 0;
 let onboardingAnswers = {};
-let clerkMounted = false;
+let clerkInstance = null;
+let mountedMode = null; // 'signup' | 'signin' | null — un seul composant Clerk actif à la fois
 
 const onboardingQuestions = [
     {
@@ -48,12 +49,26 @@ async function initAuthPage() {
         return;
     }
 
-    mountClerkWidgets(Clerk);
+    clerkInstance = Clerk;
+    mountClerkWidget(authMode);
 }
 
-function mountClerkWidgets(Clerk) {
-    if (clerkMounted) return;
-    clerkMounted = true;
+function mountClerkWidget(mode) {
+    if (!clerkInstance || mountedMode === mode) return;
+
+    // Un seul composant Clerk monté à la fois : avec routing:'virtual', SignUp
+    // et SignIn gèrent chacun un état de flux interne (étape courante, résultat
+    // en cours de vérification...). Les monter tous les deux simultanément
+    // (même si l'un est caché en CSS) fait que Clerk ne sait plus lequel des
+    // deux "possède" l'étape en cours et bascule vers son portail hébergé
+    // (accounts.dev) au moment de la vérification — d'où le bug observé même
+    // en Sign In. On monte/démonte donc à chaque changement d'onglet.
+    if (mountedMode === 'signup') {
+        clerkInstance.unmountComponent(document.getElementById('clerkSignUp'));
+    } else if (mountedMode === 'signin') {
+        clerkInstance.unmountComponent(document.getElementById('clerkSignIn'));
+    }
+    mountedMode = null;
 
     const redirectUrl = window.location.href.split('#')[0].split('?')[0];
 
@@ -77,14 +92,19 @@ function mountClerkWidgets(Clerk) {
         // sans jamais changer d'URL.
         routing: 'virtual',
     };
-    Clerk.mountSignUp(document.getElementById('clerkSignUp'), {
-        ...redirectProps,
-        signInUrl: redirectUrl,
-    });
-    Clerk.mountSignIn(document.getElementById('clerkSignIn'), {
-        ...redirectProps,
-        signUpUrl: redirectUrl,
-    });
+
+    if (mode === 'signup') {
+        clerkInstance.mountSignUp(document.getElementById('clerkSignUp'), {
+            ...redirectProps,
+            signInUrl: redirectUrl,
+        });
+    } else {
+        clerkInstance.mountSignIn(document.getElementById('clerkSignIn'), {
+            ...redirectProps,
+            signUpUrl: redirectUrl,
+        });
+    }
+    mountedMode = mode;
 }
 
 function bindEvents() {
@@ -103,6 +123,7 @@ function switchAuthMode(mode) {
     document.getElementById('showLoginTab').classList.toggle('active', mode === 'login');
     document.getElementById('clerkSignUpWrap').classList.toggle('hidden', mode !== 'signup');
     document.getElementById('clerkSignInWrap').classList.toggle('hidden', mode !== 'login');
+    mountClerkWidget(mode === 'signup' ? 'signup' : 'signin');
 }
 
 async function routeSignedInUser() {
