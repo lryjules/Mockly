@@ -53,6 +53,20 @@ async function initAuthPage() {
     mountClerkWidget(authMode);
 }
 
+function _detachClerkNode(elementId) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    // Certaines versions du SDK Clerk (dont celle servie par cette instance)
+    // n'exposent pas Clerk.unmountComponent — dans ce cas on force le
+    // détachement en remplaçant le nœud par un clone vide (même id), ce qui
+    // retire du DOM le composant monté et ses listeners internes.
+    if (typeof clerkInstance?.unmountComponent === 'function') {
+        clerkInstance.unmountComponent(el);
+    } else {
+        el.replaceWith(el.cloneNode(false));
+    }
+}
+
 function mountClerkWidget(mode) {
     if (!clerkInstance || mountedMode === mode) return;
 
@@ -64,9 +78,9 @@ function mountClerkWidget(mode) {
     // (accounts.dev) au moment de la vérification — d'où le bug observé même
     // en Sign In. On monte/démonte donc à chaque changement d'onglet.
     if (mountedMode === 'signup') {
-        clerkInstance.unmountComponent(document.getElementById('clerkSignUp'));
+        _detachClerkNode('clerkSignUp');
     } else if (mountedMode === 'signin') {
-        clerkInstance.unmountComponent(document.getElementById('clerkSignIn'));
+        _detachClerkNode('clerkSignIn');
     }
     mountedMode = null;
 
