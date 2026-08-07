@@ -98,10 +98,16 @@ function switchAuthMode(mode) {
 }
 
 async function routeSignedInUser() {
+    console.log('[Auth] routeSignedInUser() : appel getCurrentUser...');
     const me = await window.MocklyAuth.getCurrentUser({ force: true });
-    if (!me || !me.user) return;
+    console.log('[Auth] routeSignedInUser() : me =', me);
+    if (!me || !me.user) {
+        console.warn('[Auth] routeSignedInUser() : pas de user, arrêt (page reste en l’état).');
+        return;
+    }
 
     if (me.user.is_school_admin) {
+        console.log('[Auth] → redirection /school');
         window.location.href = '/school';
         return;
     }
@@ -109,6 +115,7 @@ async function routeSignedInUser() {
     if (me.user.is_admin) {
         // Un compte admin plateforme n'appartient à aucune école : pas
         // d'étape "choisis ton école" à lui imposer.
+        console.log('[Auth] → is_admin, redirection workspace.html');
         window.location.href = 'workspace.html';
         return;
     }
@@ -116,12 +123,14 @@ async function routeSignedInUser() {
     if (!me.user.school_id) {
         // Compte fraîchement créé (ou jamais complété) : Clerk ne connaît pas
         // notre notion d'école, il faut la demander avant d'aller plus loin.
+        console.log('[Auth] → pas de school_id, affichage du panneau école');
         document.getElementById('authPanel').classList.add('hidden');
         document.getElementById('schoolPanel').classList.remove('hidden');
         loadSchoolsIntoSelect();
         return;
     }
 
+    console.log('[Auth] → redirection workspace.html');
     window.location.href = 'workspace.html';
 }
 

@@ -16,10 +16,13 @@
         if (!window.MocklyAuth) {
             // clerk-auth.js pas chargé avant ce script : on ne peut rien vérifier,
             // mieux vaut renvoyer vers l'auth que de laisser une page bloquée invisible.
+            console.error('[AuthGuard] clerk-auth.js absent, redirection auth.html');
             window.location.replace('auth.html');
             return;
         }
+        console.log('[AuthGuard] vérification de la session...');
         const me = await window.MocklyAuth.requireSignedIn('auth.html');
+        console.log('[AuthGuard] requireSignedIn() →', me);
         if (me) reveal();
     });
 })();

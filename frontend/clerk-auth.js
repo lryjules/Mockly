@@ -108,20 +108,25 @@ async function getCurrentUser(opts = {}) {
     _pendingMePromise = (async () => {
         const token = await getToken();
         if (!token) {
+            console.warn('[MocklyAuth] getCurrentUser() : pas de token, /api/me non appelé.');
             _cachedMe = null;
             return null;
         }
         try {
+            console.log('[MocklyAuth] getCurrentUser() : appel /api/me...');
             const res = await fetch(`${MOCKLY_API_BASE_URL}/me`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
+            const body = await res.text();
+            console.log('[MocklyAuth] /api/me →', res.status, body);
             if (!res.ok) {
                 _cachedMe = null;
                 return null;
             }
-            _cachedMe = await res.json(); // { user: {...}, profile: {...} }
+            _cachedMe = JSON.parse(body); // { user: {...}, profile: {...} }
             return _cachedMe;
         } catch (error) {
+            console.error('[MocklyAuth] /api/me a levé une erreur réseau :', error);
             _cachedMe = null;
             return null;
         }
