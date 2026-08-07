@@ -19,7 +19,15 @@ from flask_limiter.util import get_remote_address
 
 limiter = Limiter(
     key_func=get_remote_address,
-    default_limits=["500 per hour", "60 per minute"],
+    # Backstop DoS général, pas le contrôle d'abus principal : ce rôle est
+    # tenu par les limites explicites (@limiter.limit) posées sur chaque route
+    # sensible (login, signup, upload-cv, appels IA...), qui s'appliquent EN
+    # PLUS de cette limite globale. Elle doit donc rester large — un 60/min
+    # partagé par IP entre TOUTES les routes s'épuisait dès qu'une page en
+    # appelait plusieurs (courant : /api/me + /api/config + /api/schools sur
+    # un seul chargement), ce qui a fini par bloquer /api/me lui-même et
+    # provoquer une boucle de redirection auto-entretenue sur la page auth.
+    default_limits=["2000 per hour", "300 per minute"],
     storage_uri="memory://",
 )
 
