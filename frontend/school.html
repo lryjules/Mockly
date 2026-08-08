@@ -97,8 +97,18 @@
       vertical-align: middle;
     }
 
-    .credit-stepper { display: flex; align-items: center; gap: 0.4rem; }
-    .credit-stepper button {
+    .token-bonus-editor { display: flex; align-items: center; gap: 0.4rem; }
+    .token-bonus-input {
+      width: 90px;
+      padding: 0.3rem 0.4rem;
+      border-radius: 5px;
+      border: 1px solid var(--vscode-border);
+      background: var(--vscode-line);
+      color: var(--vscode-text);
+      font-size: 0.82rem;
+    }
+    .token-bonus-input:focus { outline: none; border-color: var(--vscode-blue); }
+    .token-bonus-save {
       width: 24px;
       height: 24px;
       border-radius: 5px;
@@ -109,10 +119,9 @@
       font-size: 0.9rem;
       line-height: 1;
     }
-    .credit-stepper button:hover { border-color: var(--vscode-blue); color: var(--vscode-blue); }
-    .credit-stepper button:disabled { opacity: 0.4; cursor: not-allowed; }
-    .credit-stepper .credit-value { min-width: 1.6rem; text-align: center; font-weight: 700; color: var(--vscode-blue); }
-    .credit-stepper.zero .credit-value { color: #ff6b6b; }
+    .token-bonus-save:hover { border-color: var(--vscode-blue); color: var(--vscode-blue); }
+    .token-bonus-save:disabled, .token-bonus-input:disabled { opacity: 0.4; cursor: not-allowed; }
+    .token-usage-full { color: #ff6b6b; font-weight: 700; }
 
     .bulk-credit-form {
       display: flex;
@@ -188,16 +197,13 @@
       </section>
 
       <section class="kpi-section">
-        <div class="kpi-section-title">🎟️ Crédits du pool</div>
-        <div class="kpi-section-subtitle">Ajoute (ou retire, avec un nombre négatif) des crédits à tous les élèves de l'école d'un coup.</div>
+        <div class="kpi-section-title">🎟️ Bonus de tokens quotidien</div>
+        <div class="kpi-section-subtitle">Ajoute (ou retire, avec un nombre négatif) du bonus quotidien de tokens à tous les élèves de l'école d'un coup — dans la limite du pool bonus mensuel de l'école.</div>
         <form id="bulkCreditForm" class="bulk-credit-form">
-          <label>Crédits Interview (delta)
-            <input type="number" name="interview_credits" step="1" placeholder="ex: 5 ou -2">
+          <label>Bonus quotidien (delta, tokens)
+            <input type="number" name="bonus_daily_token_limit_delta" step="1000" placeholder="ex: 20000 ou -10000">
           </label>
-          <label>Crédits Coach (delta)
-            <input type="number" name="coach_credits" step="1" placeholder="ex: 5 ou -2">
-          </label>
-          <button type="submit" class="primary-btn">Appliquer au pool</button>
+          <button type="submit" class="primary-btn">Appliquer à tous les élèves</button>
           <span class="bulk-save-status" id="bulkSaveStatus"></span>
         </form>
       </section>
@@ -212,8 +218,8 @@
               <th>Sessions CV</th>
               <th>Entretiens</th>
               <th>Score moyen</th>
-              <th>Crédits Interview</th>
-              <th>Crédits Coach</th>
+              <th>Tokens aujourd'hui</th>
+              <th>Bonus quotidien (tokens)</th>
             </tr>
           </thead>
           <tbody id="studentsTableBody"></tbody>

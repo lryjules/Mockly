@@ -12,6 +12,7 @@ from flask import Blueprint, request, jsonify, g
 
 from api.db import get_db
 from api import admin_metrics
+from api import token_budget
 from api.security import limiter, validate_length
 from api.clerk_auth import require_auth, get_or_create_local_user
 
@@ -19,7 +20,7 @@ admin_bp = Blueprint("admin", __name__)
 
 MAX_SCHOOL_NAME_LEN = 120
 MAX_EMAIL_LEN = 254
-MAX_CREDITS = 10_000
+MAX_BONUS_DAILY_TOKENS = token_budget.MAX_DAILY_TOKEN_LIMIT - token_budget.DEFAULT_DAILY_TOKEN_LIMIT
 
 
 def _is_admin(clerk_user_id: str | None) -> bool:
@@ -77,21 +78,29 @@ def list_users():
     if not _is_admin(g.clerk_user_id):
         return jsonify({"error": "Accès réservé aux administrateurs"}), 403
 
+    today = token_budget.today()
     with get_db() as conn:
         rows = conn.execute("""
             SELECT u.id, u.email, u.is_admin, u.is_school_admin, u.school_id, sc.name AS school_name,
-                   u.interview_credits, u.coach_credits, u.created_at,
+                   u.bonus_daily_token_limit, u.created_at,
+                   COALESCE(t.tokens_used, 0) AS tokens_used_today,
                    COUNT(DISTINCT s.id)  AS nb_sessions,
                    COUNT(DISTINCT ji.id) AS nb_interviews
             FROM users u
             LEFT JOIN schools sc ON sc.id = u.school_id
             LEFT JOIN sessions s ON s.user_id = u.id
             LEFT JOIN job_interviews ji ON ji.user_id = u.id
-            GROUP BY u.id, sc.name
+            LEFT JOIN token_usage_daily t ON t.user_id = u.id AND t.usage_date = %s
+            GROUP BY u.id, sc.name, t.tokens_used
             ORDER BY u.created_at DESC
-        """).fetchall()
+        """, (today,)).fetchall()
 
-    return jsonify([dict(row) for row in rows])
+    users = []
+    for row in rows:
+        d = dict(row)
+        d["daily_token_limit"] = token_budget.DEFAULT_DAILY_TOKEN_LIMIT + (row["bonus_daily_token_limit"] or 0)
+        users.append(d)
+    return jsonify(users)
 
 
 @admin_bp.route("/api/admin/schools", methods=["GET"])
@@ -103,6 +112,7 @@ def list_schools():
     with get_db() as conn:
         rows = conn.execute("""
             SELECT sc.id, sc.name, sc.created_at,
+                   sc.monthly_bonus_token_pool, sc.monthly_bonus_tokens_used, sc.monthly_bonus_reset_month,
                    COUNT(DISTINCT u.id) FILTER (WHERE u.is_admin = 0 AND u.is_school_admin = 0) AS nb_students,
                    admin_u.id    AS admin_id,
                    admin_u.email AS admin_email,
@@ -115,7 +125,14 @@ def list_schools():
             ORDER BY sc.name
         """).fetchall()
 
-    return jsonify([dict(row) for row in rows])
+    current_month = token_budget.this_month()
+    schools = []
+    for row in rows:
+        d = dict(row)
+        if d["monthly_bonus_reset_month"] != current_month:
+            d["monthly_bonus_tokens_used"] = 0
+        schools.append(d)
+    return jsonify(schools)
 
 
 @admin_bp.route("/api/admin/schools", methods=["POST"])
@@ -198,35 +215,60 @@ def delete_school(school_id):
     return jsonify({"message": "École supprimée"})
 
 
-@admin_bp.route("/api/admin/users/<target_user_id>/credits", methods=["POST"])
+@admin_bp.route("/api/admin/users/<target_user_id>/token-bonus", methods=["POST"])
 @require_auth
 @limiter.limit("60 per hour")
-def update_user_credits(target_user_id):
+def update_user_token_bonus(target_user_id):
+    """Ajuste le bonus quotidien de tokens (au-delà du quota gratuit de
+    token_budget.DEFAULT_DAILY_TOKEN_LIMIT) d'un utilisateur. Contrairement à
+    l'école (voir school_routes.py), l'admin plateforme n'est pas contraint
+    par un pool mensuel : c'est lui qui définit le pool de chaque école."""
     if not _is_admin(g.clerk_user_id):
         return jsonify({"error": "Accès réservé aux administrateurs"}), 403
     data = request.get_json(force=True)
 
-    updates = {}
-    for key in ("interview_credits", "coach_credits"):
-        if key in data:
-            try:
-                updates[key] = max(0, min(MAX_CREDITS, int(data[key])))
-            except (TypeError, ValueError):
-                return jsonify({"error": f"{key} doit être un entier"}), 400
-
-    if not updates:
-        return jsonify({"error": "Aucun champ à mettre à jour"}), 400
+    if "bonus_daily_token_limit" not in data:
+        return jsonify({"error": "bonus_daily_token_limit requis"}), 400
+    try:
+        bonus = max(0, min(MAX_BONUS_DAILY_TOKENS, int(data["bonus_daily_token_limit"])))
+    except (TypeError, ValueError):
+        return jsonify({"error": "bonus_daily_token_limit doit être un entier"}), 400
 
     with get_db() as conn:
         existing = conn.execute("SELECT id FROM users WHERE id=%s", (target_user_id,)).fetchone()
         if not existing:
             return jsonify({"error": "Utilisateur introuvable"}), 404
 
-        set_clause = ", ".join(f"{key}=?" for key in updates)
-        conn.execute(f"UPDATE users SET {set_clause} WHERE id=%s", (*updates.values(), target_user_id))
+        conn.execute("UPDATE users SET bonus_daily_token_limit=%s WHERE id=%s", (bonus, target_user_id))
 
-        row = conn.execute(
-            "SELECT interview_credits, coach_credits FROM users WHERE id=%s", (target_user_id,)
-        ).fetchone()
+    return jsonify({
+        "bonus_daily_token_limit": bonus,
+        "daily_token_limit": token_budget.DEFAULT_DAILY_TOKEN_LIMIT + bonus,
+    })
 
-    return jsonify({"interview_credits": row["interview_credits"], "coach_credits": row["coach_credits"]})
+
+@admin_bp.route("/api/admin/schools/<school_id>/token-pool", methods=["POST"])
+@require_auth
+@limiter.limit("60 per hour")
+def update_school_token_pool(school_id):
+    """Définit le pool mensuel de tokens bonus qu'une école peut distribuer à
+    ses élèves — c'est le levier de facturation/plan de l'admin plateforme."""
+    if not _is_admin(g.clerk_user_id):
+        return jsonify({"error": "Accès réservé aux administrateurs"}), 403
+    data = request.get_json(force=True)
+
+    if "monthly_bonus_token_pool" not in data:
+        return jsonify({"error": "monthly_bonus_token_pool requis"}), 400
+    try:
+        pool = max(0, min(token_budget.MAX_SCHOOL_MONTHLY_BONUS_POOL, int(data["monthly_bonus_token_pool"])))
+    except (TypeError, ValueError):
+        return jsonify({"error": "monthly_bonus_token_pool doit être un entier"}), 400
+
+    with get_db() as conn:
+        updated = conn.execute(
+            "UPDATE schools SET monthly_bonus_token_pool=%s WHERE id=%s", (pool, school_id)
+        )
+    if updated.rowcount == 0:
+        return jsonify({"error": "École introuvable"}), 404
+
+    return jsonify({"monthly_bonus_token_pool": pool})

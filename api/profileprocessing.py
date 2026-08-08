@@ -19,7 +19,8 @@ FALLBACK_COMPETENCIES = [
 VALID_CATEGORIES = {"technique", "métier", "soft_skill"}
 
 
-def analyze_job_posting(job_description: str, cv_data: dict | None = None) -> dict:
+def analyze_job_posting(job_description: str, cv_data: dict | None = None,
+                         user_id: str | None = None) -> dict:
     """Extrait l'intitulé du poste et 4 à 6 compétences clés à évaluer à l'oral.
 
     Renvoie : {"job_title": str, "competencies": [{"name", "category", "weight"}, ...]}
@@ -58,7 +59,7 @@ Réponds uniquement avec le JSON, sans texte autour.
     }
 
     try:
-        result = ai_gateway.ai_call(prompt, fallback, context="job_posting_analysis")
+        result = ai_gateway.ai_call(prompt, fallback, context="job_posting_analysis", user_id=user_id)
     except Exception:
         result = fallback
 

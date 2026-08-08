@@ -24,7 +24,7 @@ from api.speech import tts as speech_tts
 from api import profileprocessing
 from api import interviewengine
 from api import profile_engine
-from api import credits
+from api import token_budget
 from api.security import limiter, validate_length
 from api.clerk_auth import require_auth, get_or_create_local_user, session_owned_by_current_user
 
@@ -45,7 +45,7 @@ def _row_to_turn_dict(row) -> dict:
 
 
 def _generate_lookahead(interview_id, job_title, job_description,
-                         competency_names, existing_turns, cv_data):
+                         competency_names, existing_turns, cv_data, user_id=None):
     """Génère (sans rien écrire) la question suivante, si une compétence reste à couvrir."""
     covered = [t["competency"] for t in existing_turns]
     next_competency = interviewengine.pick_next_competency(competency_names, covered)
@@ -55,7 +55,7 @@ def _generate_lookahead(interview_id, job_title, job_description,
     previous_questions = [t["question"] for t in existing_turns]
     question = interviewengine.generate_question(
         job_title, job_description, next_competency, previous_questions, cv_data,
-        interview_id=interview_id
+        interview_id=interview_id, user_id=user_id
     )
     return {"turn_index": len(existing_turns), "competency": next_competency, "question": question}
 
@@ -74,8 +74,8 @@ def interview_start():
     if err := validate_length(job_description, "job_description", MAX_JOB_DESCRIPTION_LEN):
         return err
     get_or_create_local_user(user_id)
-    if not credits.consume_credit(user_id, "interview"):
-        return jsonify({"error": "Crédits Interview épuisés. Contacte ton administrateur pour en obtenir davantage."}), 402
+    if not token_budget.has_budget(user_id):
+        return jsonify({"error": "Quota de tokens IA quotidien atteint. Réessaie demain, ou contacte ton établissement pour l'augmenter."}), 402
 
     cv_data = None
     if session_id:
@@ -87,7 +87,7 @@ def interview_start():
             cv_data = json.loads(row["cv_data"])
 
     # --- Appels IA (aucune connexion ouverte pendant ce temps) ---
-    analysis = profileprocessing.analyze_job_posting(job_description, cv_data)
+    analysis = profileprocessing.analyze_job_posting(job_description, cv_data, user_id=user_id)
     job_title = analysis["job_title"]
     competencies = analysis["competencies"]  # [{"name", "category", "weight"}, ...]
     competency_names = [c["name"] for c in competencies]
@@ -96,11 +96,13 @@ def interview_start():
 
     first_competency = competency_names[0]
     first_question = interviewengine.generate_question(
-        job_title, job_description, first_competency, [], cv_data, interview_id=interview_id
+        job_title, job_description, first_competency, [], cv_data,
+        interview_id=interview_id, user_id=user_id
     )
     first_turn = {"turn_index": 0, "competency": first_competency, "question": first_question}
     lookahead = _generate_lookahead(
-        interview_id, job_title, job_description, competency_names, [first_turn], cv_data
+        interview_id, job_title, job_description, competency_names, [first_turn], cv_data,
+        user_id=user_id
     )
 
     # --- Écriture : une seule connexion courte, après tous les appels IA ---
@@ -156,6 +158,10 @@ def interview_respond():
     if audio_size == 0:
         return jsonify({"error": "Fichier audio vide"}), 400
 
+    user_id = g.clerk_user_id
+    if not token_budget.has_budget(user_id):
+        return jsonify({"error": "Quota de tokens IA quotidien atteint. Réessaie demain, ou contacte ton établissement pour l'augmenter."}), 402
+
     # --- Lecture seule : tout le contexte nécessaire ---
     with get_db() as conn:
         interview = conn.execute("SELECT * FROM job_interviews WHERE id=%s", (interview_id,)).fetchone()
@@ -184,7 +190,7 @@ def interview_respond():
 
     # --- Appels IA (aucune connexion ouverte pendant ce temps) ---
     mime_type = (audio_file.mimetype or "audio/webm").split(";")[0]
-    transcript = speech_stt.transcribe(audio_file.read(), mime_type, interview_id=interview_id)
+    transcript = speech_stt.transcribe(audio_file.read(), mime_type, interview_id=interview_id, user_id=user_id)
 
     next_turn = next((t for t in all_turns if t["turn_index"] == turn_index + 1), None)
 
@@ -195,7 +201,7 @@ def interview_respond():
         turns_up_to_next = all_turns[:next_turn["turn_index"] + 1]
         new_lookahead = _generate_lookahead(
             interview_id, interview["job_title"], interview["job_description"],
-            competency_names, turns_up_to_next, cv_data
+            competency_names, turns_up_to_next, cv_data, user_id=user_id
         )
 
     # --- Écriture : une seule connexion courte, après tous les appels IA ---
@@ -245,6 +251,10 @@ def interview_finish():
     if not interview_id:
         return jsonify({"error": "interview_id requis"}), 400
 
+    user_id = g.clerk_user_id
+    if not token_budget.has_budget(user_id):
+        return jsonify({"error": "Quota de tokens IA quotidien atteint. Réessaie demain, ou contacte ton établissement pour l'augmenter."}), 402
+
     # --- Lecture seule ---
     with get_db() as conn:
         interview = conn.execute("SELECT * FROM job_interviews WHERE id=%s", (interview_id,)).fetchone()
@@ -261,7 +271,7 @@ def interview_finish():
     # --- Appel IA (aucune connexion ouverte pendant ce temps) ---
     evaluation = interviewengine.generate_final_evaluation(
         interview["job_title"], interview["job_description"], turns,
-        interview_id=interview_id
+        interview_id=interview_id, user_id=user_id
     )
 
     # --- Écriture ---

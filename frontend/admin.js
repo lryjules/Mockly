@@ -207,62 +207,55 @@ async function loadKpis(opts = {}) {
     }
 }
 
-function renderCreditStepper(userId, kind, value) {
-    const zeroClass = value <= 0 ? ' zero' : '';
+function renderTokenBonusEditor(userId, bonus) {
     return `
-        <div class="credit-stepper${zeroClass}" data-user="${userId}" data-kind="${kind}">
-            <button type="button" class="credit-minus" ${value <= 0 ? 'disabled' : ''}>−</button>
-            <span class="credit-value">${value}</span>
-            <button type="button" class="credit-plus">+</button>
+        <div class="token-bonus-editor" data-user="${userId}">
+            <input type="number" class="token-bonus-input" min="0" step="1000" value="${bonus}">
+            <button type="button" class="token-bonus-save">✓</button>
         </div>
     `;
 }
 
 function renderUsersTable(users) {
-    el('usersTableBody').innerHTML = users.map((u) => `
+    el('usersTableBody').innerHTML = users.map((u) => {
+        const nearLimit = u.tokens_used_today >= u.daily_token_limit;
+        return `
         <tr>
             <td>${escHtml(u.email)}${u.is_admin ? '<span class="admin-badge">admin</span>' : ''}${u.is_school_admin ? '<span class="admin-badge">école</span>' : ''}</td>
             <td>${escHtml(u.school_name || '—')}</td>
             <td>${escHtml((u.created_at || '').slice(0, 10))}</td>
             <td>${u.nb_sessions}</td>
             <td>${u.nb_interviews}</td>
-            <td>${renderCreditStepper(u.id, 'interview_credits', u.interview_credits)}</td>
-            <td>${renderCreditStepper(u.id, 'coach_credits', u.coach_credits)}</td>
+            <td class="${nearLimit ? 'token-usage-full' : ''}">${fmtNum(u.tokens_used_today)} / ${fmtNum(u.daily_token_limit)}</td>
+            <td>${renderTokenBonusEditor(u.id, u.bonus_daily_token_limit)}</td>
         </tr>
-    `).join('');
+    `;
+    }).join('');
 
-    el('usersTableBody').querySelectorAll('.credit-stepper').forEach((stepper) => {
-        const userId = stepper.dataset.user;
-        const kind = stepper.dataset.kind;
-        stepper.querySelector('.credit-minus').addEventListener('click', () => adjustCredit(userId, kind, stepper, -1));
-        stepper.querySelector('.credit-plus').addEventListener('click', () => adjustCredit(userId, kind, stepper, 1));
+    el('usersTableBody').querySelectorAll('.token-bonus-editor').forEach((editor) => {
+        const userId = editor.dataset.user;
+        editor.querySelector('.token-bonus-save').addEventListener('click', () => saveTokenBonus(userId, editor));
     });
 }
 
-async function adjustCredit(userId, kind, stepperEl, delta) {
-    const currentValue = parseInt(stepperEl.querySelector('.credit-value').textContent, 10);
-    const newValue = Math.max(0, currentValue + delta);
-
-    stepperEl.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+async function saveTokenBonus(userId, editorEl) {
+    const input = editorEl.querySelector('.token-bonus-input');
+    const value = Math.max(0, parseInt(input.value, 10) || 0);
+    editorEl.querySelectorAll('button, input').forEach((el2) => { el2.disabled = true; });
 
     try {
-        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/admin/users/${userId}/credits`, {
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/admin/users/${userId}/token-bonus`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ [kind]: newValue }),
+            body: JSON.stringify({ bonus_daily_token_limit: value }),
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Erreur');
-
-        const updated = data[kind];
-        stepperEl.querySelector('.credit-value').textContent = updated;
-        stepperEl.classList.toggle('zero', updated <= 0);
-        stepperEl.querySelector('.credit-minus').disabled = updated <= 0;
+        input.value = data.bonus_daily_token_limit;
     } catch (error) {
         alert(error.message);
     } finally {
-        stepperEl.querySelectorAll('button').forEach((b) => { b.disabled = false; });
-        stepperEl.querySelector('.credit-minus').disabled = parseInt(stepperEl.querySelector('.credit-value').textContent, 10) <= 0;
+        editorEl.querySelectorAll('button, input').forEach((el2) => { el2.disabled = false; });
     }
 }
 
@@ -282,7 +275,7 @@ async function openUsersModal() {
 
 function renderSchoolsTable(schools) {
     if (schools.length === 0) {
-        el('schoolsTableBody').innerHTML = '<tr><td colspan="5">Aucune école créée pour l\'instant.</td></tr>';
+        el('schoolsTableBody').innerHTML = '<tr><td colspan="6">Aucune école créée pour l\'instant.</td></tr>';
         return;
     }
     el('schoolsTableBody').innerHTML = schools.map((s) => `
@@ -291,6 +284,13 @@ function renderSchoolsTable(schools) {
             <td>${escHtml(s.admin_email || s.pending_admin_email || '—')}${!s.admin_email && s.pending_admin_email ? ' <span class="admin-badge">en attente</span>' : ''}</td>
             <td>${s.nb_students}</td>
             <td>${escHtml((s.created_at || '').slice(0, 10))}</td>
+            <td>
+                <div class="token-bonus-editor" data-school="${s.id}">
+                    <input type="number" class="token-bonus-input" min="0" step="10000" value="${s.monthly_bonus_token_pool}">
+                    <button type="button" class="token-bonus-save">✓</button>
+                </div>
+                <div class="kpi-tile-meta">${fmtNum(s.monthly_bonus_tokens_used)} utilisés ce mois</div>
+            </td>
             <td><button type="button" class="school-delete-btn" data-school="${s.id}" ${s.nb_students > 0 ? 'disabled title="Retire d\'abord les élèves de cette école"' : ''}>Supprimer</button></td>
         </tr>
     `).join('');
@@ -298,6 +298,31 @@ function renderSchoolsTable(schools) {
     el('schoolsTableBody').querySelectorAll('.school-delete-btn').forEach((btn) => {
         btn.addEventListener('click', () => deleteSchool(btn.dataset.school));
     });
+    el('schoolsTableBody').querySelectorAll('.token-bonus-editor').forEach((editor) => {
+        const schoolId = editor.dataset.school;
+        editor.querySelector('.token-bonus-save').addEventListener('click', () => saveSchoolTokenPool(schoolId, editor));
+    });
+}
+
+async function saveSchoolTokenPool(schoolId, editorEl) {
+    const input = editorEl.querySelector('.token-bonus-input');
+    const value = Math.max(0, parseInt(input.value, 10) || 0);
+    editorEl.querySelectorAll('button, input').forEach((el2) => { el2.disabled = true; });
+
+    try {
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/admin/schools/${schoolId}/token-pool`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ monthly_bonus_token_pool: value }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Erreur');
+        input.value = data.monthly_bonus_token_pool;
+    } catch (error) {
+        alert(error.message);
+    } finally {
+        editorEl.querySelectorAll('button, input').forEach((el2) => { el2.disabled = false; });
+    }
 }
 
 async function loadSchools() {

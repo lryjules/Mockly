@@ -18,7 +18,7 @@ def pick_next_competency(all_competencies: list[str], covered_competencies: list
 
 def generate_question(job_title: str, job_description: str, competency: str,
                        previous_questions: list[str], cv_data: dict | None = None,
-                       interview_id: str | None = None) -> str:
+                       interview_id: str | None = None, user_id: str | None = None) -> str:
     """Génère une question orale ciblant une compétence précise, sans répéter les précédentes."""
     cv_context = ""
     if cv_data:
@@ -47,7 +47,8 @@ Contraintes :
 Réponds uniquement avec un JSON : {{"question": "..."}}
 """
     fallback = {"question": f"Pouvez-vous me parler d'une expérience qui illustre : {competency} ?"}
-    result = ai_gateway.ai_call(prompt, fallback, context="interview_question", interview_id=interview_id)
+    result = ai_gateway.ai_call(prompt, fallback, context="interview_question",
+                                 interview_id=interview_id, user_id=user_id)
     return result.get("question") or fallback["question"]
 
 
@@ -63,7 +64,7 @@ def _format_turns(turns: list[dict]) -> str:
 
 
 def generate_final_evaluation(job_title: str, job_description: str, turns: list[dict],
-                                interview_id: str | None = None) -> dict:
+                                interview_id: str | None = None, user_id: str | None = None) -> dict:
     """Produit l'évaluation écrite globale de l'entretien, avec un score par compétence."""
     turns_text = _format_turns(turns)
 
@@ -100,4 +101,5 @@ Rédige une évaluation globale de cet entretien. Réponds uniquement avec un JS
         "ameliorations": [],
         "conseil_final": "",
     }
-    return ai_gateway.ai_call(prompt, fallback, context="interview_eval", interview_id=interview_id)
+    return ai_gateway.ai_call(prompt, fallback, context="interview_eval",
+                               interview_id=interview_id, user_id=user_id)

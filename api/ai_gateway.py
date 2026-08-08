@@ -31,7 +31,8 @@ def get_client():
 
 
 def ai_call(prompt: str, fallback: dict, context: str = "other",
-            interview_id: str | None = None, session_id: str | None = None) -> dict:
+            interview_id: str | None = None, session_id: str | None = None,
+            user_id: str | None = None) -> dict:
     """Appelle Gemini et parse une réponse JSON. Renvoie fallback en cas d'erreur.
 
     `context` étiquette l'appel (ex: 'cv_parse', 'interview_question', 'chat')
@@ -59,7 +60,8 @@ def ai_call(prompt: str, fallback: dict, context: str = "other",
             context, GEMINI_MODEL,
             getattr(usage, "prompt_token_count", None) if usage else None,
             getattr(usage, "candidates_token_count", None) if usage else None,
-            latency_ms, True, interview_id=interview_id, session_id=session_id
+            latency_ms, True, interview_id=interview_id, session_id=session_id,
+            user_id=user_id
         )
 
         text = response.text.strip()
@@ -89,7 +91,7 @@ def ai_call(prompt: str, fallback: dict, context: str = "other",
         latency_ms = int((time.monotonic() - start) * 1000)
         ai_logging.log_call(
             context, GEMINI_MODEL, None, None, latency_ms, False, str(e),
-            interview_id=interview_id, session_id=session_id
+            interview_id=interview_id, session_id=session_id, user_id=user_id
         )
         print(f"[AI] Exception: {e}")
         traceback.print_exc()

@@ -1,23 +1,29 @@
 """Routes du tableau de bord "profil école" : /api/school/dashboard,
-/api/school/students/<id>/credits, /api/school/credits/bulk.
+/api/school/students/<id>/token-bonus, /api/school/token-bonus/bulk.
 
 Sécurité : l'identité vient d'un token de session Clerk vérifié (@require_auth,
 voir api/clerk_auth.py). Chaque action est en plus scopée au school_id du
 compte "profil école" qui appelle — un compte école ne peut jamais lire ni
 modifier un élève d'une autre école.
+
+Le bonus quotidien accordé à un élève (au-delà du quota gratuit défini par
+api.token_budget.DEFAULT_DAILY_TOKEN_LIMIT) n'est jamais garanti au moment où
+il est réglé ici : il n'est réellement actif que tant que le pool mensuel de
+l'école (schools.monthly_bonus_token_pool) n'est pas épuisé — voir
+api/token_budget.py::get_effective_daily_limit.
 """
 
 from flask import Blueprint, request, jsonify, g
 
 from api.db import get_db
 from api import school_metrics
+from api import token_budget
 from api.security import limiter
 from api.clerk_auth import require_auth, get_or_create_local_user
 
 school_bp = Blueprint("school", __name__)
 
-MAX_CREDITS = 10_000
-MAX_CREDIT_DELTA = 10_000
+MAX_BONUS_DAILY_TOKENS = token_budget.MAX_DAILY_TOKEN_LIMIT - token_budget.DEFAULT_DAILY_TOKEN_LIMIT
 
 
 def _get_school_admin(clerk_user_id: str | None):
@@ -41,25 +47,21 @@ def get_dashboard():
     return jsonify(dashboard)
 
 
-@school_bp.route("/api/school/students/<student_id>/credits", methods=["POST"])
+@school_bp.route("/api/school/students/<student_id>/token-bonus", methods=["POST"])
 @require_auth
 @limiter.limit("60 per hour")
-def update_student_credits(student_id):
+def update_student_token_bonus(student_id):
     admin = _get_school_admin(g.clerk_user_id)
     if not admin:
         return jsonify({"error": "Accès réservé aux comptes école"}), 403
     data = request.get_json(force=True)
 
-    updates = {}
-    for key in ("interview_credits", "coach_credits"):
-        if key in data:
-            try:
-                updates[key] = max(0, min(MAX_CREDITS, int(data[key])))
-            except (TypeError, ValueError):
-                return jsonify({"error": f"{key} doit être un entier"}), 400
-
-    if not updates:
-        return jsonify({"error": "Aucun champ à mettre à jour"}), 400
+    if "bonus_daily_token_limit" not in data:
+        return jsonify({"error": "bonus_daily_token_limit requis"}), 400
+    try:
+        bonus = max(0, min(MAX_BONUS_DAILY_TOKENS, int(data["bonus_daily_token_limit"])))
+    except (TypeError, ValueError):
+        return jsonify({"error": "bonus_daily_token_limit doit être un entier"}), 400
 
     with get_db() as conn:
         student = conn.execute(
@@ -68,47 +70,40 @@ def update_student_credits(student_id):
         if not student:
             return jsonify({"error": "Élève introuvable dans ton école"}), 404
 
-        set_clause = ", ".join(f"{key}=?" for key in updates)
-        conn.execute(f"UPDATE users SET {set_clause} WHERE id=%s", (*updates.values(), student_id))
+        conn.execute("UPDATE users SET bonus_daily_token_limit=%s WHERE id=%s", (bonus, student_id))
 
-        row = conn.execute(
-            "SELECT interview_credits, coach_credits FROM users WHERE id=%s", (student_id,)
-        ).fetchone()
-
-    return jsonify({"interview_credits": row["interview_credits"], "coach_credits": row["coach_credits"]})
+    return jsonify({
+        "bonus_daily_token_limit": bonus,
+        "daily_token_limit": token_budget.DEFAULT_DAILY_TOKEN_LIMIT + bonus,
+    })
 
 
-@school_bp.route("/api/school/credits/bulk", methods=["POST"])
+@school_bp.route("/api/school/token-bonus/bulk", methods=["POST"])
 @require_auth
 @limiter.limit("20 per hour")
-def bulk_update_credits():
-    """Ajoute (ou retire, avec un delta négatif) des crédits à tout le pool d'élèves de l'école."""
+def bulk_update_token_bonus():
+    """Ajoute (ou retire, avec un delta négatif) un bonus quotidien à tout le pool d'élèves de l'école."""
     admin = _get_school_admin(g.clerk_user_id)
     if not admin:
         return jsonify({"error": "Accès réservé aux comptes école"}), 403
     data = request.get_json(force=True)
 
-    deltas = {}
-    for key in ("interview_credits", "coach_credits"):
-        if key in data:
-            try:
-                deltas[key] = max(-MAX_CREDIT_DELTA, min(MAX_CREDIT_DELTA, int(data[key])))
-            except (TypeError, ValueError):
-                return jsonify({"error": f"{key} doit être un entier"}), 400
-
-    if not deltas:
-        return jsonify({"error": "Aucun champ à mettre à jour"}), 400
+    if "bonus_daily_token_limit_delta" not in data:
+        return jsonify({"error": "bonus_daily_token_limit_delta requis"}), 400
+    try:
+        delta = max(-MAX_BONUS_DAILY_TOKENS, min(MAX_BONUS_DAILY_TOKENS, int(data["bonus_daily_token_limit_delta"])))
+    except (TypeError, ValueError):
+        return jsonify({"error": "bonus_daily_token_limit_delta doit être un entier"}), 400
 
     with get_db() as conn:
-        for key, delta in deltas.items():
-            conn.execute(
-                f"UPDATE users SET {key} = MIN({MAX_CREDITS}, MAX(0, {key} + %s)) "
-                "WHERE school_id=%s AND is_admin=0 AND is_school_admin=0",
-                (delta, admin["school_id"])
-            )
+        conn.execute(
+            f"UPDATE users SET bonus_daily_token_limit = LEAST({MAX_BONUS_DAILY_TOKENS}, GREATEST(0, bonus_daily_token_limit + %s)) "
+            "WHERE school_id=%s AND is_admin=0 AND is_school_admin=0",
+            (delta, admin["school_id"])
+        )
         nb_students = conn.execute(
             "SELECT COUNT(*) FROM users WHERE school_id=%s AND is_admin=0 AND is_school_admin=0",
             (admin["school_id"],)
         ).fetchone()[0]
 
-    return jsonify({"message": "Crédits mis à jour", "nb_students": nb_students})
+    return jsonify({"message": "Bonus de tokens mis à jour", "nb_students": nb_students})

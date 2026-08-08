@@ -85,13 +85,12 @@ def get_db() -> psycopg.Connection[Row]:
 _SCHEMA_STATEMENTS = [
     """
     CREATE TABLE IF NOT EXISTS users (
-        id                TEXT PRIMARY KEY,
-        email             TEXT NOT NULL UNIQUE,
-        password_hash     TEXT NOT NULL,
-        is_admin          INTEGER NOT NULL DEFAULT 0,
-        interview_credits INTEGER NOT NULL DEFAULT 3,
-        coach_credits     INTEGER NOT NULL DEFAULT 3,
-        created_at        TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
+        id                      TEXT PRIMARY KEY,
+        email                   TEXT NOT NULL UNIQUE,
+        password_hash           TEXT NOT NULL,
+        is_admin                INTEGER NOT NULL DEFAULT 0,
+        bonus_daily_token_limit INTEGER NOT NULL DEFAULT 0,
+        created_at              TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
     )
     """,
     """
@@ -187,7 +186,19 @@ _SCHEMA_STATEMENTS = [
         success        INTEGER NOT NULL DEFAULT 1,
         error_message  TEXT,
         interview_id   TEXT,
-        session_id     TEXT
+        session_id     TEXT,
+        user_id        TEXT
+    )
+    """,
+    # Compteur de tokens IA consommés par jour et par étudiant, pour le quota
+    # journalier (api/token_budget.py). Une ligne par (user_id, usage_date),
+    # incrémentée à chaque appel Gemini réellement effectué.
+    """
+    CREATE TABLE IF NOT EXISTS token_usage_daily (
+        user_id     TEXT NOT NULL,
+        usage_date  TEXT NOT NULL,
+        tokens_used INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (user_id, usage_date)
     )
     """,
     # Indicateurs business/pilote saisis manuellement par l'admin (aucune
@@ -204,9 +215,12 @@ _SCHEMA_STATEMENTS = [
     # (users.is_school_admin=1, users.school_id = l'école qu'il gère).
     """
     CREATE TABLE IF NOT EXISTS schools (
-        id         TEXT PRIMARY KEY,
-        name       TEXT NOT NULL UNIQUE,
-        created_at TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
+        id                        TEXT PRIMARY KEY,
+        name                      TEXT NOT NULL UNIQUE,
+        monthly_bonus_token_pool  INTEGER NOT NULL DEFAULT 1000000,
+        monthly_bonus_tokens_used INTEGER NOT NULL DEFAULT 0,
+        monthly_bonus_reset_month TEXT NOT NULL DEFAULT '',
+        created_at                TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
     )
     """,
     # Invitation "profil école" en attente : posée par un admin plateforme
@@ -226,10 +240,18 @@ _SCHEMA_STATEMENTS = [
 _COLUMN_MIGRATIONS = [
     "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS user_id TEXT",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin INTEGER NOT NULL DEFAULT 0",
-    "ALTER TABLE users ADD COLUMN IF NOT EXISTS interview_credits INTEGER NOT NULL DEFAULT 3",
-    "ALTER TABLE users ADD COLUMN IF NOT EXISTS coach_credits INTEGER NOT NULL DEFAULT 3",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS school_id TEXT REFERENCES schools(id)",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_school_admin INTEGER NOT NULL DEFAULT 0",
+    # Remplace le système de crédits par un quota de tokens IA quotidien
+    # (voir api/token_budget.py) : les anciennes colonnes de crédits sont
+    # abandonnées, remplacées par un bonus quotidien accordé par l'école.
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS bonus_daily_token_limit INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE users DROP COLUMN IF EXISTS interview_credits",
+    "ALTER TABLE users DROP COLUMN IF EXISTS coach_credits",
+    "ALTER TABLE schools ADD COLUMN IF NOT EXISTS monthly_bonus_token_pool INTEGER NOT NULL DEFAULT 1000000",
+    "ALTER TABLE schools ADD COLUMN IF NOT EXISTS monthly_bonus_tokens_used INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE schools ADD COLUMN IF NOT EXISTS monthly_bonus_reset_month TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE ai_call_log ADD COLUMN IF NOT EXISTS user_id TEXT",
 ]
 
 

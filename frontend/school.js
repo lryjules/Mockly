@@ -41,8 +41,8 @@ function renderKpis(k) {
         tile('Entretiens terminés', fmtNum(k.interviews_completed)),
         tile('Taux de complétion', fmtPct(k.completion_rate)),
         tile('Score moyen', fmtScore10(k.average_score)),
-        tile('Crédits Interview restants', fmtNum(k.total_interview_credits)),
-        tile('Crédits Coach restants', fmtNum(k.total_coach_credits)),
+        tile('Tokens utilisés aujourd\'hui', fmtNum(k.tokens_used_today)),
+        tile('Pool bonus restant ce mois', fmtNum(k.monthly_bonus_tokens_remaining), 'accent', `sur ${fmtNum(k.monthly_bonus_token_pool)} tokens`),
     ].join('');
 }
 
@@ -60,62 +60,55 @@ function renderWeakest(weakest) {
     `).join('');
 }
 
-function renderCreditStepper(studentId, kind, value) {
-    const zeroClass = value <= 0 ? ' zero' : '';
+function renderTokenBonusEditor(studentId, bonus) {
     return `
-        <div class="credit-stepper${zeroClass}" data-student="${studentId}" data-kind="${kind}">
-            <button type="button" class="credit-minus" ${value <= 0 ? 'disabled' : ''}>−</button>
-            <span class="credit-value">${value}</span>
-            <button type="button" class="credit-plus">+</button>
+        <div class="token-bonus-editor" data-student="${studentId}">
+            <input type="number" class="token-bonus-input" min="0" step="1000" value="${bonus}">
+            <button type="button" class="token-bonus-save">✓</button>
         </div>
     `;
 }
 
 function renderStudentsTable(students) {
-    el('studentsTableBody').innerHTML = students.map((s) => `
+    el('studentsTableBody').innerHTML = students.map((s) => {
+        const nearLimit = s.tokens_used_today >= s.daily_token_limit;
+        return `
         <tr>
             <td>${escHtml(s.email)}</td>
             <td>${escHtml((s.created_at || '').slice(0, 10))}</td>
             <td>${s.nb_sessions}</td>
             <td>${s.nb_interviews}</td>
             <td>${fmtScore10(s.average_score)}</td>
-            <td>${renderCreditStepper(s.id, 'interview_credits', s.interview_credits)}</td>
-            <td>${renderCreditStepper(s.id, 'coach_credits', s.coach_credits)}</td>
+            <td class="${nearLimit ? 'token-usage-full' : ''}">${fmtNum(s.tokens_used_today)} / ${fmtNum(s.daily_token_limit)}</td>
+            <td>${renderTokenBonusEditor(s.id, s.bonus_daily_token_limit)}</td>
         </tr>
-    `).join('');
+    `;
+    }).join('');
 
-    el('studentsTableBody').querySelectorAll('.credit-stepper').forEach((stepper) => {
-        const studentId = stepper.dataset.student;
-        const kind = stepper.dataset.kind;
-        stepper.querySelector('.credit-minus').addEventListener('click', () => adjustCredit(studentId, kind, stepper, -1));
-        stepper.querySelector('.credit-plus').addEventListener('click', () => adjustCredit(studentId, kind, stepper, 1));
+    el('studentsTableBody').querySelectorAll('.token-bonus-editor').forEach((editor) => {
+        const studentId = editor.dataset.student;
+        editor.querySelector('.token-bonus-save').addEventListener('click', () => saveTokenBonus(studentId, editor));
     });
 }
 
-async function adjustCredit(studentId, kind, stepperEl, delta) {
-    const currentValue = parseInt(stepperEl.querySelector('.credit-value').textContent, 10);
-    const newValue = Math.max(0, currentValue + delta);
-
-    stepperEl.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+async function saveTokenBonus(studentId, editorEl) {
+    const input = editorEl.querySelector('.token-bonus-input');
+    const value = Math.max(0, parseInt(input.value, 10) || 0);
+    editorEl.querySelectorAll('button, input').forEach((el2) => { el2.disabled = true; });
 
     try {
-        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/school/students/${studentId}/credits`, {
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/school/students/${studentId}/token-bonus`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ [kind]: newValue }),
+            body: JSON.stringify({ bonus_daily_token_limit: value }),
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Erreur');
-
-        const updated = data[kind];
-        stepperEl.querySelector('.credit-value').textContent = updated;
-        stepperEl.classList.toggle('zero', updated <= 0);
-        stepperEl.querySelector('.credit-minus').disabled = updated <= 0;
+        input.value = data.bonus_daily_token_limit;
     } catch (error) {
         alert(error.message);
     } finally {
-        stepperEl.querySelectorAll('button').forEach((b) => { b.disabled = false; });
-        stepperEl.querySelector('.credit-minus').disabled = parseInt(stepperEl.querySelector('.credit-value').textContent, 10) <= 0;
+        editorEl.querySelectorAll('button, input').forEach((el2) => { el2.disabled = false; });
     }
 }
 
@@ -124,27 +117,18 @@ async function submitBulkCredits(event) {
     const status = el('bulkSaveStatus');
     const formData = new FormData(event.target);
 
-    const payload = {};
-    let hasValue = false;
-    ['interview_credits', 'coach_credits'].forEach((key) => {
-        const raw = formData.get(key);
-        if (raw !== '' && raw !== null) {
-            payload[key] = parseInt(raw, 10);
-            hasValue = true;
-        }
-    });
-
-    if (!hasValue) {
-        status.textContent = 'Renseigne au moins un des deux champs.';
+    const raw = formData.get('bonus_daily_token_limit_delta');
+    if (raw === '' || raw === null) {
+        status.textContent = 'Renseigne un delta de tokens.';
         return;
     }
 
     status.textContent = 'Application...';
     try {
-        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/school/credits/bulk`, {
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/school/token-bonus/bulk`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
+            body: JSON.stringify({ bonus_daily_token_limit_delta: parseInt(raw, 10) }),
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Erreur');

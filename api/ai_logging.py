@@ -9,6 +9,7 @@ import time
 from contextlib import contextmanager
 
 from api.db import get_db
+from api import token_budget
 
 # USD pour 1 million de tokens. Approximatif (tarif "Flash" générique) :
 # à ajuster si le modèle réellement utilisé (cf. ai_gateway.GEMINI_MODEL)
@@ -31,17 +32,20 @@ def estimate_cost(input_tokens: int | None, output_tokens: int | None) -> float:
 def log_call(context: str, model: str | None, input_tokens: int | None,
              output_tokens: int | None, latency_ms: int, success: bool,
              error_message: str | None = None, interview_id: str | None = None,
-             session_id: str | None = None) -> None:
+             session_id: str | None = None, user_id: str | None = None) -> None:
     try:
         with get_db() as conn:
             conn.execute(
                 """INSERT INTO ai_call_log
                    (context, model, input_tokens, output_tokens, latency_ms,
-                    success, error_message, interview_id, session_id)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                    success, error_message, interview_id, session_id, user_id)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
                 (context, model, input_tokens, output_tokens, latency_ms,
-                 int(success), error_message, interview_id, session_id)
+                 int(success), error_message, interview_id, session_id, user_id)
             )
+            if success and user_id:
+                # Même connexion/transaction que l'INSERT ci-dessus.
+                token_budget.record_usage(conn, user_id, input_tokens, output_tokens)
     except Exception as e:
         # La journalisation ne doit jamais faire échouer l'appel IA lui-même.
         print(f"[ai_logging] Impossible d'enregistrer l'appel : {e}")
@@ -49,7 +53,7 @@ def log_call(context: str, model: str | None, input_tokens: int | None,
 
 @contextmanager
 def timed_call(context: str, model: str | None, interview_id: str | None = None,
-               session_id: str | None = None):
+               session_id: str | None = None, user_id: str | None = None):
     """Chronomètre un appel Gemini et le journalise automatiquement.
 
     Usage :
@@ -70,7 +74,7 @@ def timed_call(context: str, model: str | None, interview_id: str | None = None,
     except Exception as e:
         latency_ms = int((time.monotonic() - start) * 1000)
         log_call(context, model, None, None, latency_ms, False, str(e),
-                  interview_id, session_id)
+                  interview_id, session_id, user_id)
         raise
     else:
         latency_ms = int((time.monotonic() - start) * 1000)
@@ -78,4 +82,4 @@ def timed_call(context: str, model: str | None, interview_id: str | None = None,
         input_tokens = getattr(usage, "prompt_token_count", None) if usage else None
         output_tokens = getattr(usage, "candidates_token_count", None) if usage else None
         log_call(context, model, input_tokens, output_tokens, latency_ms, True,
-                  None, interview_id, session_id)
+                  None, interview_id, session_id, user_id)

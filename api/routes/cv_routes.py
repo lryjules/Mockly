@@ -9,7 +9,7 @@ from flask import Blueprint, request, jsonify, g
 from api.db import get_db, UPLOADS_DIR
 from api import ai_gateway
 from api import profile_engine
-from api import credits
+from api import token_budget
 from api.security import limiter
 from api.clerk_auth import require_auth, get_or_create_local_user
 
@@ -47,7 +47,7 @@ def extract_cv_text(filepath: str) -> str:
             return ""
 
 
-def parse_cv_with_ai(cv_text: str) -> tuple[dict, dict]:
+def parse_cv_with_ai(cv_text: str, user_id: str | None = None) -> tuple[dict, dict]:
     """
     Returns (cv_data, analysis) where:
       cv_data  = {nom, email, telephone, competences, experiences, formations}
@@ -109,7 +109,7 @@ Retourne exactement ce format JSON:
             }
         }
     }
-    result = ai_call(prompt, fallback, context="cv_parse")
+    result = ai_call(prompt, fallback, context="cv_parse", user_id=user_id)
     cv_data = result.get("cv_data", fallback["cv_data"])
     analysis = result.get("analysis", fallback["analysis"])
     return cv_data, analysis
@@ -140,8 +140,8 @@ def upload_cv():
 
     user_id = g.clerk_user_id
     get_or_create_local_user(user_id)
-    if not credits.consume_credit(user_id, "coach"):
-        return jsonify({"error": "Crédits Coach épuisés. Contacte ton administrateur pour en obtenir davantage."}), 402
+    if not token_budget.has_budget(user_id):
+        return jsonify({"error": "Quota de tokens IA quotidien atteint. Réessaie demain, ou contacte ton établissement pour l'augmenter."}), 402
 
     session_id = str(uuid.uuid4())
     filename = f"{session_id}{ext}"
@@ -152,7 +152,7 @@ def upload_cv():
     if not cv_text.strip():
         cv_text = "[Texte non extractable — vérifiez que le PDF n'est pas une image scannée]"
 
-    cv_data, analysis = parse_cv_with_ai(cv_text)
+    cv_data, analysis = parse_cv_with_ai(cv_text, user_id=user_id)
 
     with get_db() as conn:
         conn.execute(

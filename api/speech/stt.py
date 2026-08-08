@@ -16,7 +16,7 @@ TRANSCRIBE_PROMPT = (
 
 
 def transcribe(audio_bytes: bytes, mime_type: str = "audio/webm",
-                interview_id: str | None = None) -> str:
+                interview_id: str | None = None, user_id: str | None = None) -> str:
     """Transcrit un extrait audio en texte. Renvoie une chaîne vide si aucune clé n'est configurée."""
     client = ai_gateway.get_client()
     if not client:
@@ -24,7 +24,8 @@ def transcribe(audio_bytes: bytes, mime_type: str = "audio/webm",
         return ""
 
     try:
-        with ai_logging.timed_call("stt", ai_gateway.GEMINI_MODEL, interview_id=interview_id) as record:
+        with ai_logging.timed_call("stt", ai_gateway.GEMINI_MODEL,
+                                    interview_id=interview_id, user_id=user_id) as record:
             audio_part = genai_types.Part.from_bytes(data=audio_bytes, mime_type=mime_type)
             response = client.models.generate_content(
                 model=ai_gateway.GEMINI_MODEL,

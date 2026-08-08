@@ -8,6 +8,7 @@ toujours filtrée sur users.school_id = l'école du compte connecté.
 import json
 
 from api.db import get_db
+from api import token_budget
 
 ACTIVE_WINDOW_DAYS = 30
 
@@ -58,11 +59,22 @@ def _pool_kpis(conn, school_id: str) -> dict:
             scores.append(score)
     average_score = round(sum(scores) / len(scores), 1) if scores else None
 
-    credits_row = conn.execute(
-        "SELECT SUM(interview_credits) AS total_interview, SUM(coach_credits) AS total_coach "
-        "FROM users WHERE school_id=%s AND is_admin=0 AND is_school_admin=0",
+    today = token_budget.today()
+    usage_row = conn.execute("""
+        SELECT COALESCE(SUM(t.tokens_used), 0) AS tokens_used_today
+        FROM users u
+        LEFT JOIN token_usage_daily t ON t.user_id = u.id AND t.usage_date = %s
+        WHERE u.school_id = %s AND u.is_admin = 0 AND u.is_school_admin = 0
+    """, (today, school_id)).fetchone()
+
+    school_row = conn.execute(
+        "SELECT monthly_bonus_token_pool, monthly_bonus_tokens_used, monthly_bonus_reset_month "
+        "FROM schools WHERE id=%s",
         (school_id,)
     ).fetchone()
+    bonus_used = school_row["monthly_bonus_tokens_used"] or 0
+    if school_row["monthly_bonus_reset_month"] != token_budget.this_month():
+        bonus_used = 0
 
     return {
         "nb_students": nb_students,
@@ -72,23 +84,28 @@ def _pool_kpis(conn, school_id: str) -> dict:
         "interviews_completed": interviews_completed,
         "completion_rate": _safe_div(interviews_completed, interviews_started),
         "average_score": average_score,
-        "total_interview_credits": credits_row["total_interview"] or 0,
-        "total_coach_credits": credits_row["total_coach"] or 0,
+        "tokens_used_today": usage_row["tokens_used_today"] or 0,
+        "monthly_bonus_token_pool": school_row["monthly_bonus_token_pool"],
+        "monthly_bonus_tokens_used": bonus_used,
+        "monthly_bonus_tokens_remaining": max(0, school_row["monthly_bonus_token_pool"] - bonus_used),
     }
 
 
 def _student_list(conn, school_id: str) -> list[dict]:
+    today = token_budget.today()
     rows = conn.execute("""
-        SELECT u.id, u.email, u.created_at, u.interview_credits, u.coach_credits,
+        SELECT u.id, u.email, u.created_at, u.bonus_daily_token_limit,
+               COALESCE(t.tokens_used, 0) AS tokens_used_today,
                COUNT(DISTINCT s.id)  AS nb_sessions,
                COUNT(DISTINCT ji.id) AS nb_interviews
         FROM users u
         LEFT JOIN sessions s ON s.user_id = u.id
         LEFT JOIN job_interviews ji ON ji.user_id = u.id
+        LEFT JOIN token_usage_daily t ON t.user_id = u.id AND t.usage_date = %s
         WHERE u.school_id = %s AND u.is_admin = 0 AND u.is_school_admin = 0
-        GROUP BY u.id
+        GROUP BY u.id, t.tokens_used
         ORDER BY u.created_at DESC
-    """, (school_id,)).fetchall()
+    """, (today, school_id)).fetchall()
 
     students = []
     for row in rows:
@@ -111,8 +128,9 @@ def _student_list(conn, school_id: str) -> list[dict]:
             "created_at": row["created_at"],
             "nb_sessions": row["nb_sessions"],
             "nb_interviews": row["nb_interviews"],
-            "interview_credits": row["interview_credits"],
-            "coach_credits": row["coach_credits"],
+            "bonus_daily_token_limit": row["bonus_daily_token_limit"] or 0,
+            "daily_token_limit": token_budget.DEFAULT_DAILY_TOKEN_LIMIT + (row["bonus_daily_token_limit"] or 0),
+            "tokens_used_today": row["tokens_used_today"],
             "average_score": round(sum(scores) / len(scores), 1) if scores else None,
         })
     return students

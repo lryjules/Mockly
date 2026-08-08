@@ -8,6 +8,7 @@ from api.db import get_db
 from api import ai_gateway
 from api import ai_logging
 from api import profile_engine
+from api import token_budget
 from api.security import limiter, validate_length
 from api.clerk_auth import require_auth, session_owned_by_current_user
 
@@ -21,7 +22,7 @@ MAX_RESPONSE_LEN = 6000
 
 
 def evaluate_response_with_ai(cv_data: dict, question: str, user_response: str,
-                               session_id: str | None = None) -> dict:
+                               session_id: str | None = None, user_id: str | None = None) -> dict:
     prompt = f"""
 Tu es un coach RH expert. Évalue cette réponse d'entretien.
 
@@ -54,7 +55,7 @@ Réponds UNIQUEMENT en JSON valide sans markdown:
             "Comment avez-vous géré les obstacles rencontrés ?"
         ]
     }
-    return ai_call(prompt, fallback, context="evaluate_response", session_id=session_id)
+    return ai_call(prompt, fallback, context="evaluate_response", session_id=session_id, user_id=user_id)
 
 
 @chat_bp.route("/api/start-chat", methods=["POST"])
@@ -106,6 +107,10 @@ def chat():
     if err := validate_length(message, "message", MAX_MESSAGE_LEN):
         return err
 
+    user_id = g.clerk_user_id
+    if not token_budget.has_budget(user_id):
+        return jsonify({"error": "Quota de tokens IA quotidien atteint. Réessaie demain, ou contacte ton établissement pour l'augmenter."}), 402
+
     with get_db() as conn:
         if not session_owned_by_current_user(conn, session_id):
             return jsonify({"error": "Session introuvable"}), 404
@@ -140,7 +145,7 @@ Ne renvoie que le texte de ta réponse, sans JSON.
 """
     if ai_gateway.get_client():
         try:
-            with ai_logging.timed_call("chat", ai_gateway.GEMINI_MODEL, session_id=session_id) as record:
+            with ai_logging.timed_call("chat", ai_gateway.GEMINI_MODEL, session_id=session_id, user_id=user_id) as record:
                 resp = ai_gateway.get_client().models.generate_content(
                     model=ai_gateway.GEMINI_MODEL,
                     contents=prompt
@@ -185,6 +190,10 @@ def evaluate_response():
     if err := validate_length(user_response, "response", MAX_RESPONSE_LEN):
         return err
 
+    user_id = g.clerk_user_id
+    if not token_budget.has_budget(user_id):
+        return jsonify({"error": "Quota de tokens IA quotidien atteint. Réessaie demain, ou contacte ton établissement pour l'augmenter."}), 402
+
     with get_db() as conn:
         if not session_owned_by_current_user(conn, session_id):
             return jsonify({"error": "Session introuvable"}), 404
@@ -194,7 +203,7 @@ def evaluate_response():
         return jsonify({"error": "Session introuvable"}), 404
 
     cv_data = json.loads(row["cv_data"])
-    evaluation = evaluate_response_with_ai(cv_data, question, user_response, session_id=session_id)
+    evaluation = evaluate_response_with_ai(cv_data, question, user_response, session_id=session_id, user_id=user_id)
 
     with get_db() as conn:
         conn.execute(
