@@ -39,6 +39,8 @@
 }
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+/* Poppins : réservée au wordmark "Mockly" (700) et aux accents visuels (800) — voir .wordmark / .accent-display */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@700;800&display=swap');
 
 html,
 body {
@@ -50,6 +52,18 @@ body {
 
 body {
     overflow: auto;
+}
+
+/* Identité de marque : Poppins pour le wordmark "Mockly" et les accents visuels,
+   Inter reste la police de lecture pour le reste de l'interface. */
+.wordmark {
+    font-family: 'Poppins', 'Inter', sans-serif;
+    font-weight: 700;
+}
+
+.accent-display {
+    font-family: 'Poppins', 'Inter', sans-serif;
+    font-weight: 800;
 }
 
 /* ==================== LAYOUT ==================== */
@@ -100,8 +114,9 @@ body {
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    font-family: 'Poppins', 'Inter', sans-serif;
     font-size: 0.875rem;
-    font-weight: 600;
+    font-weight: 700;
     color: var(--vscode-text-bright);
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -997,59 +1012,45 @@ body {
 }
 
 /* Logo animé, utilisé dans les espaces de chargement (remplace .spinner).
-   Le logo (assets/logo.png) est découpé en 4 images (arc + 3 vagues, voir
-   mockly-loader.js) empilées en position absolue, animées indépendamment. */
+   Reprend en CSS pur la silhouette du logo (3 barres verticales arrondies,
+   voir mockly-loader.js) — chaque barre "rebondit" comme un égaliseur audio. */
 .mockly-loader {
-    display: inline-block;
-    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
     width: 20px;
     height: 18px;
     flex-shrink: 0;
+    color: var(--vscode-blue);
 }
 
 .mockly-loader.mockly-loader-lg {
     width: 48px;
     height: 43px;
+    gap: 7px;
 }
 
-.mockly-loader img {
+.mockly-loader-bar {
     display: block;
+    width: 22%;
+    height: 100%;
+    border-radius: 999px;
+    background: currentColor;
+    animation: mockly-loader-bounce 1.1s ease-in-out infinite;
 }
 
-@keyframes mockly-pulse-arc {
-    0%, 100% { transform: scaleY(1); opacity: 1; }
-    50% { transform: scaleY(0.65); opacity: 0.75; }
-}
+.mockly-loader-bar-left { animation-delay: 0s; }
+.mockly-loader-bar-center { height: 60%; animation-delay: 0.15s; }
+.mockly-loader-bar-right { animation-delay: 0.3s; }
 
-@keyframes mockly-pulse-wave {
-    0%, 100% { transform: scaleX(1); opacity: 0.55; }
-    50% { transform: scaleX(1.05); opacity: 1; }
-}
-
-.mockly-loader .mockly-logo-arc {
-    animation: mockly-pulse-arc 1.1s ease-in-out infinite;
-}
-
-.mockly-loader .mockly-logo-wave1 {
-    animation: mockly-pulse-wave 1.1s ease-in-out infinite;
-    animation-delay: 0s;
-}
-
-.mockly-loader .mockly-logo-wave2 {
-    animation: mockly-pulse-wave 1.1s ease-in-out infinite;
-    animation-delay: 0.15s;
-}
-
-.mockly-loader .mockly-logo-wave3 {
-    animation: mockly-pulse-wave 1.1s ease-in-out infinite;
-    animation-delay: 0.3s;
+@keyframes mockly-loader-bounce {
+    0%, 100% { transform: scaleY(0.55); opacity: 0.6; }
+    50% { transform: scaleY(1); opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .mockly-loader .mockly-logo-arc,
-    .mockly-loader .mockly-logo-wave1,
-    .mockly-loader .mockly-logo-wave2,
-    .mockly-loader .mockly-logo-wave3 {
+    .mockly-loader-bar {
         animation: none;
     }
 }
@@ -1150,8 +1151,9 @@ body {
 }
 
 .brand {
+    font-family: 'Poppins', 'Inter', sans-serif;
     font-size: 1rem;
-    font-weight: 800;
+    font-weight: 700;
     color: var(--vscode-text-bright);
     text-decoration: none;
     letter-spacing: 0.08em;
@@ -1210,6 +1212,8 @@ body {
 }
 
 .eyebrow {
+    font-family: 'Poppins', 'Inter', sans-serif;
+    font-weight: 800;
     font-size: 0.8rem;
     text-transform: uppercase;
     letter-spacing: 0.2rem;
@@ -1218,6 +1222,8 @@ body {
 }
 
 .hero-card h1 {
+    font-family: 'Poppins', 'Inter', sans-serif;
+    font-weight: 800;
     font-size: 2.4rem;
     line-height: 1.2;
     color: var(--vscode-text-bright);
@@ -1653,6 +1659,8 @@ body.modal-open {
     border-radius: 999px;
     background: rgba(86, 156, 214, 0.16);
     color: var(--vscode-blue);
+    font-family: 'Poppins', 'Inter', sans-serif;
+    font-weight: 800;
     font-size: 0.82rem;
     margin-bottom: 1rem;
 }
@@ -1665,6 +1673,8 @@ body.modal-open {
 }
 
 .auth-hero h1 {
+    font-family: 'Poppins', 'Inter', sans-serif;
+    font-weight: 800;
     font-size: clamp(2rem, 3vw, 3rem);
     color: var(--vscode-text-bright);
     margin-bottom: 0.8rem;

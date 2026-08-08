@@ -1,19 +1,12 @@
 // Logo Mockly animé, réutilisé partout où l'app affiche un état de chargement
-// (remplace l'ancien <div class="spinner"></div>). Le logo réel (assets/logo.png)
-// est découpé en 4 bandes (arc + 3 vagues) empilées en position absolue, pour
-// pouvoir animer chaque trait indépendamment tout en gardant le rendu exact.
-const MOCKLY_LOADER_PIECES = [
-    { name: 'arc', top: 0.0, height: 29.2 },
-    { name: 'wave1', top: 37.5, height: 20.2 },
-    { name: 'wave2', top: 61.3, height: 18.6 },
-    { name: 'wave3', top: 82.2, height: 17.4 },
-];
+// (remplace l'ancien <div class="spinner"></div>). Reprend en CSS pur la forme
+// du nouveau logo (3 barres verticales arrondies, tailles inégales) plutôt que
+// de découper une image — plus net à toute taille, et anime naturellement
+// comme un égaliseur audio.
+const MOCKLY_LOADER_BARS = ['left', 'center', 'right'];
 
 function mocklyLoader(size = '') {
     const sizeClass = size === 'lg' ? ' mockly-loader-lg' : '';
-    const pieces = MOCKLY_LOADER_PIECES.map((p) => `
-        <img src="assets/logo-${p.name}.png" alt="" class="mockly-logo-${p.name}"
-             style="position:absolute;left:0;top:${p.top}%;width:100%;height:${p.height}%;">
-    `).join('');
-    return `<span class="mockly-loader${sizeClass}" aria-hidden="true" style="position:relative;display:inline-block;">${pieces}</span>`;
+    const bars = MOCKLY_LOADER_BARS.map((name) => `<span class="mockly-loader-bar mockly-loader-bar-${name}"></span>`).join('');
+    return `<span class="mockly-loader${sizeClass}" aria-hidden="true">${bars}</span>`;
 }
