@@ -23,8 +23,20 @@ from api import ai_logging
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_MODEL = "gemini-flash-latest"
 
+# Le SDK retente par défaut jusqu'à 5 fois (backoff exponentiel 1s/2s/4s/8s...,
+# y compris sur 429) avant de lever — jusqu'à ~20s de latence supplémentaire
+# par appel en échec. Sur un 429 persistant (ex. crédits Gemini épuisés), ce
+# délai dépasse le timeout du proxy (Render), qui renvoie alors sa propre page
+# d'erreur HTML au lieu de notre réponse JSON — d'où le "Unexpected token '<'"
+# côté front. On limite donc les tentatives pour échouer vite : mieux vaut un
+# vrai message d'erreur rapide qu'une attente qui casse la réponse JSON.
+_HTTP_OPTIONS = genai_types.HttpOptions(
+    timeout=20_000,  # ms, par tentative
+    retry_options=genai_types.HttpRetryOptions(attempts=2, initial_delay=0.5, max_delay=2.0),
+)
+
 if GEMINI_API_KEY:
-    _client = genai.Client(api_key=GEMINI_API_KEY)
+    _client = genai.Client(api_key=GEMINI_API_KEY, http_options=_HTTP_OPTIONS)
 else:
     _client = None
     print("⚠️  GEMINI_API_KEY not set – les fonctionnalités IA échoueront.")
