@@ -1420,10 +1420,121 @@ body {
 .footer-links {
     display: flex;
     gap: 1rem;
+    flex-wrap: wrap;
 }
 
 body.modal-open {
     overflow: hidden;
+}
+
+/* Pages légales (CGU, CGV, mentions légales, confidentialité) */
+.legal-article {
+    max-width: 780px;
+    margin: 0 auto;
+    line-height: 1.7;
+}
+
+.legal-article h1 {
+    color: var(--vscode-text-bright);
+    font-size: 1.7rem;
+    margin-bottom: 0.4rem;
+}
+
+.legal-article h2 {
+    color: var(--vscode-blue);
+    font-size: 1.1rem;
+    margin: 1.6rem 0 0.6rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--vscode-border);
+}
+
+.legal-article h2:first-of-type {
+    border-top: none;
+    padding-top: 0;
+}
+
+.legal-article p,
+.legal-article li {
+    color: var(--vscode-text);
+    font-size: 0.95rem;
+}
+
+.legal-article ul,
+.legal-article ol {
+    padding-left: 1.3rem;
+    margin: 0.4rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.legal-article a {
+    color: var(--vscode-blue);
+}
+
+.legal-article code {
+    background: rgba(255, 255, 255, 0.08);
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    font-size: 0.85em;
+}
+
+.legal-article table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.8rem 0;
+    font-size: 0.85rem;
+}
+
+.legal-article th,
+.legal-article td {
+    border: 1px solid var(--vscode-border);
+    padding: 0.55rem 0.6rem;
+    text-align: left;
+    vertical-align: top;
+}
+
+.legal-article th {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--vscode-text-bright);
+}
+
+.legal-draft-notice {
+    background: rgba(255, 107, 107, 0.1);
+    border: 1px solid rgba(255, 107, 107, 0.4);
+    border-radius: 10px;
+    padding: 0.9rem 1.1rem;
+    margin-bottom: 1.4rem;
+    font-size: 0.85rem;
+    color: var(--vscode-text);
+}
+
+.legal-draft-notice p {
+    margin: 0;
+    font-size: 0.85rem;
+}
+
+.legal-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1.2rem;
+}
+
+.legal-nav a {
+    color: var(--vscode-text-muted);
+    text-decoration: none;
+    font-size: 0.85rem;
+    padding: 0.4rem 0.8rem;
+    border: 1px solid var(--vscode-border);
+    border-radius: 999px;
+    transition: var(--transition);
+}
+
+.legal-nav a:hover,
+.legal-nav a.active {
+    color: var(--vscode-blue);
+    border-color: var(--vscode-blue);
 }
 
 .auth-page {
@@ -1509,6 +1620,12 @@ body.modal-open {
     gap: 2rem;
     align-items: center;
     padding: 2.5rem;
+}
+
+.auth-footer {
+    position: relative;
+    z-index: 1;
+    margin: 0 2.5rem 1.5rem;
 }
 
 .auth-hero {
