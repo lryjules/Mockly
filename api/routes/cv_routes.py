@@ -79,39 +79,9 @@ Retourne exactement ce format JSON:
   }}
 }}
 """
-    fallback = {
-        "cv_data": {
-            "nom": "Candidat",
-            "email": "email@exemple.com",
-            "telephone": "",
-            "competences": ["Python", "JavaScript", "SQL"],
-            "experiences": ["Développeur logiciel"],
-            "formations": ["Master Informatique"]
-        },
-        "analysis": {
-            "conseils_cv": [
-                "Quantifiez vos réalisations avec des chiffres",
-                "Adaptez votre CV au poste visé",
-                "Mettez en avant vos soft skills",
-                "Soignez la mise en page",
-                "Ajoutez un résumé de profil percutant"
-            ],
-            "questions_preparation": [
-                "Parlez-moi de vous",
-                "Quelles sont vos principales compétences ?",
-                "Pourquoi ce poste vous intéresse-t-il ?",
-                "Quels sont vos points forts ?",
-                "Où vous voyez-vous dans 5 ans ?"
-            ],
-            "sujets_entretien": {
-                "secteurs": ["Tech", "Finance", "Conseil"],
-                "competences_clés": ["Communication", "Résolution de problèmes", "Travail en équipe"]
-            }
-        }
-    }
-    result = ai_call(prompt, fallback, context="cv_parse", user_id=user_id)
-    cv_data = result.get("cv_data", fallback["cv_data"])
-    analysis = result.get("analysis", fallback["analysis"])
+    result = ai_call(prompt, context="cv_parse", user_id=user_id)
+    cv_data = result.get("cv_data") or {}
+    analysis = result.get("analysis") or {}
     return cv_data, analysis
 
 
@@ -152,7 +122,10 @@ def upload_cv():
     if not cv_text.strip():
         cv_text = "[Texte non extractable — vérifiez que le PDF n'est pas une image scannée]"
 
-    cv_data, analysis = parse_cv_with_ai(cv_text, user_id=user_id)
+    try:
+        cv_data, analysis = parse_cv_with_ai(cv_text, user_id=user_id)
+    except ai_gateway.AIError as e:
+        return jsonify({"error": str(e)}), 502
 
     with get_db() as conn:
         conn.execute(

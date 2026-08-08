@@ -46,10 +46,12 @@ Contraintes :
 
 Réponds uniquement avec un JSON : {{"question": "..."}}
 """
-    fallback = {"question": f"Pouvez-vous me parler d'une expérience qui illustre : {competency} ?"}
-    result = ai_gateway.ai_call(prompt, fallback, context="interview_question",
+    result = ai_gateway.ai_call(prompt, context="interview_question",
                                  interview_id=interview_id, user_id=user_id)
-    return result.get("question") or fallback["question"]
+    question = result.get("question")
+    if not question:
+        raise ai_gateway.AIError("Réponse Gemini sans 'question' pour interview_question.")
+    return question
 
 
 def _format_turns(turns: list[dict]) -> str:
@@ -90,16 +92,5 @@ Rédige une évaluation globale de cet entretien. Réponds uniquement avec un JS
   "conseil_final": "<conseil actionnable pour la suite>"
 }}
 """
-    fallback = {
-        "score_global": None,
-        "resume": "Évaluation indisponible : configurez GEMINI_API_KEY pour activer l'analyse IA.",
-        "par_competence": [
-            {"competence": t.get("competency"), "score": None, "commentaire": "Non évalué (mode mock)."}
-            for t in turns
-        ],
-        "points_forts": [],
-        "ameliorations": [],
-        "conseil_final": "",
-    }
-    return ai_gateway.ai_call(prompt, fallback, context="interview_eval",
+    return ai_gateway.ai_call(prompt, context="interview_eval",
                                interview_id=interview_id, user_id=user_id)

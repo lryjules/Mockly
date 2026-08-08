@@ -505,9 +505,8 @@ async function generateMindMap() {
             })
         });
 
-        if (!response.ok) throw new Error('Erreur lors de la génération');
-
         const topics = await response.json();
+        if (!response.ok) throw new Error(topics.error || 'Erreur lors de la génération');
 
         // Create child nodes
         createChildNodes(topics, sector, company, role);
@@ -885,13 +884,12 @@ async function openChat(node) {
             body: JSON.stringify({ session_id: appState.sessionId })
         });
 
-        if (!response.ok) throw new Error('Erreur');
-
         const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Erreur lors du démarrage du chat');
         addMessage('assistant', data.message);
 
     } catch (error) {
-        addMessage('assistant', 'Erreur lors du démarrage du chat');
+        addMessage('assistant', 'Erreur: ' + error.message);
     }
 }
 
@@ -917,9 +915,8 @@ async function sendChatMessage() {
             })
         });
 
-        if (!response.ok) throw new Error('Erreur');
-
         const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Erreur');
         addMessage('assistant', data.message);
 
     } catch (error) {
@@ -1155,11 +1152,10 @@ async function submitResponse(responseNode, userResponse, nodeEl) {
             })
         });
 
-        if (!response.ok) {
-            throw new Error('Erreur lors de l\'évaluation');
-        }
-
         const evaluation = await response.json();
+        if (!response.ok) {
+            throw new Error(evaluation.error || 'Erreur lors de l\'évaluation');
+        }
 
         // Persister le résultat sur le nœud pour qu'il survive à un rechargement
         responseNode.userResponse = userResponse;

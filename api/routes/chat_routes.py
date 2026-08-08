@@ -42,20 +42,7 @@ Réponds UNIQUEMENT en JSON valide sans markdown:
   "questions_suivantes": ["Question de suivi 1", "Question de suivi 2"]
 }}
 """
-    fallback = {
-        "score": 7,
-        "evaluation": "Bonne réponse globalement. Vous avez su structurer vos idées clairement.",
-        "competence_ciblee": "Communication",
-        "categorie": "soft_skill",
-        "points_forts": ["Structure claire", "Exemples concrets"],
-        "ameliorations": ["Quantifiez davantage vos résultats", "Montrez plus d'enthousiasme"],
-        "exemple_ameliore": "Je pourrais aussi ajouter un exemple chiffré pour renforcer mon propos.",
-        "questions_suivantes": [
-            "Pouvez-vous développer un exemple spécifique ?",
-            "Comment avez-vous géré les obstacles rencontrés ?"
-        ]
-    }
-    return ai_call(prompt, fallback, context="evaluate_response", session_id=session_id, user_id=user_id)
+    return ai_call(prompt, context="evaluate_response", session_id=session_id, user_id=user_id)
 
 
 @chat_bp.route("/api/start-chat", methods=["POST"])
@@ -143,23 +130,20 @@ Nouvelle question/message du candidat: {message}
 Réponds en français, de façon concise (3-5 phrases max), comme un vrai coach bienveillant.
 Ne renvoie que le texte de ta réponse, sans JSON.
 """
-    if ai_gateway.get_client():
-        try:
-            with ai_logging.timed_call("chat", ai_gateway.GEMINI_MODEL, session_id=session_id, user_id=user_id) as record:
-                resp = ai_gateway.get_client().models.generate_content(
-                    model=ai_gateway.GEMINI_MODEL,
-                    contents=prompt
-                )
-                record(resp.usage_metadata)
-            reply = resp.text.strip()
-        except Exception as e:
-            print(f"Chat AI error: {e}")
-            reply = "Désolé, je rencontre une erreur momentanée. Pouvez-vous reformuler votre question ?"
-    else:
-        reply = (
-            "Je suis votre coach IA ! Pour activer mes fonctionnalités complètes, "
-            "configurez la variable d'environnement GEMINI_API_KEY."
-        )
+    if not ai_gateway.get_client():
+        return jsonify({"error": "GEMINI_API_KEY manquant côté serveur — fonctionnalités IA indisponibles."}), 502
+
+    try:
+        with ai_logging.timed_call("chat", ai_gateway.GEMINI_MODEL, session_id=session_id, user_id=user_id) as record:
+            resp = ai_gateway.get_client().models.generate_content(
+                model=ai_gateway.GEMINI_MODEL,
+                contents=prompt
+            )
+            record(resp.usage_metadata)
+        reply = resp.text.strip()
+    except Exception as e:
+        print(f"Chat AI error: {e}")
+        return jsonify({"error": f"Appel Gemini en échec (chat) : {e}"}), 502
 
     with get_db() as conn:
         conn.execute(
@@ -203,7 +187,10 @@ def evaluate_response():
         return jsonify({"error": "Session introuvable"}), 404
 
     cv_data = json.loads(row["cv_data"])
-    evaluation = evaluate_response_with_ai(cv_data, question, user_response, session_id=session_id, user_id=user_id)
+    try:
+        evaluation = evaluate_response_with_ai(cv_data, question, user_response, session_id=session_id, user_id=user_id)
+    except ai_gateway.AIError as e:
+        return jsonify({"error": str(e)}), 502
 
     with get_db() as conn:
         conn.execute(

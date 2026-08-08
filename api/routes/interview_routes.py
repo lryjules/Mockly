@@ -21,6 +21,7 @@ from flask import Blueprint, request, jsonify, g
 from api.db import get_db
 from api.speech import stt as speech_stt
 from api.speech import tts as speech_tts
+from api import ai_gateway
 from api import profileprocessing
 from api import interviewengine
 from api import profile_engine
@@ -87,23 +88,26 @@ def interview_start():
             cv_data = json.loads(row["cv_data"])
 
     # --- Appels IA (aucune connexion ouverte pendant ce temps) ---
-    analysis = profileprocessing.analyze_job_posting(job_description, cv_data, user_id=user_id)
-    job_title = analysis["job_title"]
-    competencies = analysis["competencies"]  # [{"name", "category", "weight"}, ...]
-    competency_names = [c["name"] for c in competencies]
+    try:
+        analysis = profileprocessing.analyze_job_posting(job_description, cv_data, user_id=user_id)
+        job_title = analysis["job_title"]
+        competencies = analysis["competencies"]  # [{"name", "category", "weight"}, ...]
+        competency_names = [c["name"] for c in competencies]
 
-    interview_id = str(uuid.uuid4())
+        interview_id = str(uuid.uuid4())
 
-    first_competency = competency_names[0]
-    first_question = interviewengine.generate_question(
-        job_title, job_description, first_competency, [], cv_data,
-        interview_id=interview_id, user_id=user_id
-    )
-    first_turn = {"turn_index": 0, "competency": first_competency, "question": first_question}
-    lookahead = _generate_lookahead(
-        interview_id, job_title, job_description, competency_names, [first_turn], cv_data,
-        user_id=user_id
-    )
+        first_competency = competency_names[0]
+        first_question = interviewengine.generate_question(
+            job_title, job_description, first_competency, [], cv_data,
+            interview_id=interview_id, user_id=user_id
+        )
+        first_turn = {"turn_index": 0, "competency": first_competency, "question": first_question}
+        lookahead = _generate_lookahead(
+            interview_id, job_title, job_description, competency_names, [first_turn], cv_data,
+            user_id=user_id
+        )
+    except ai_gateway.AIError as e:
+        return jsonify({"error": str(e)}), 502
 
     # --- Écriture : une seule connexion courte, après tous les appels IA ---
     with get_db() as conn:
@@ -189,20 +193,23 @@ def interview_respond():
                 cv_data = json.loads(session_row["cv_data"])
 
     # --- Appels IA (aucune connexion ouverte pendant ce temps) ---
-    mime_type = (audio_file.mimetype or "audio/webm").split(";")[0]
-    transcript = speech_stt.transcribe(audio_file.read(), mime_type, interview_id=interview_id, user_id=user_id)
+    try:
+        mime_type = (audio_file.mimetype or "audio/webm").split(";")[0]
+        transcript = speech_stt.transcribe(audio_file.read(), mime_type, interview_id=interview_id, user_id=user_id)
 
-    next_turn = next((t for t in all_turns if t["turn_index"] == turn_index + 1), None)
+        next_turn = next((t for t in all_turns if t["turn_index"] == turn_index + 1), None)
 
-    new_lookahead = None
-    if next_turn:
-        competencies = json.loads(interview["competencies"])
-        competency_names = [c["name"] for c in competencies]
-        turns_up_to_next = all_turns[:next_turn["turn_index"] + 1]
-        new_lookahead = _generate_lookahead(
-            interview_id, interview["job_title"], interview["job_description"],
-            competency_names, turns_up_to_next, cv_data, user_id=user_id
-        )
+        new_lookahead = None
+        if next_turn:
+            competencies = json.loads(interview["competencies"])
+            competency_names = [c["name"] for c in competencies]
+            turns_up_to_next = all_turns[:next_turn["turn_index"] + 1]
+            new_lookahead = _generate_lookahead(
+                interview_id, interview["job_title"], interview["job_description"],
+                competency_names, turns_up_to_next, cv_data, user_id=user_id
+            )
+    except ai_gateway.AIError as e:
+        return jsonify({"error": str(e)}), 502
 
     # --- Écriture : une seule connexion courte, après tous les appels IA ---
     with get_db() as conn:
@@ -269,10 +276,13 @@ def interview_finish():
         ]
 
     # --- Appel IA (aucune connexion ouverte pendant ce temps) ---
-    evaluation = interviewengine.generate_final_evaluation(
-        interview["job_title"], interview["job_description"], turns,
-        interview_id=interview_id, user_id=user_id
-    )
+    try:
+        evaluation = interviewengine.generate_final_evaluation(
+            interview["job_title"], interview["job_description"], turns,
+            interview_id=interview_id, user_id=user_id
+        )
+    except ai_gateway.AIError as e:
+        return jsonify({"error": str(e)}), 502
 
     # --- Écriture ---
     with get_db() as conn:

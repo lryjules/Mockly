@@ -53,15 +53,7 @@ Analyse cette fiche de poste et renvoie un JSON avec :
 Priorise les compétences les plus spécifiques et discriminantes pour ce poste précis.
 Réponds uniquement avec le JSON, sans texte autour.
 """
-    fallback = {
-        "job_title": job_description.splitlines()[0][:80] if job_description else "Poste",
-        "competencies": FALLBACK_COMPETENCIES,
-    }
-
-    try:
-        result = ai_gateway.ai_call(prompt, fallback, context="job_posting_analysis", user_id=user_id)
-    except Exception:
-        result = fallback
+    result = ai_gateway.ai_call(prompt, context="job_posting_analysis", user_id=user_id)
 
     raw_competencies = result.get("competencies") or FALLBACK_COMPETENCIES
     cleaned = []
@@ -82,6 +74,6 @@ Réponds uniquement avec le JSON, sans texte autour.
         cleaned = (cleaned + FALLBACK_COMPETENCIES)[:6]
 
     return {
-        "job_title": result.get("job_title") or fallback["job_title"],
+        "job_title": result.get("job_title") or (job_description.splitlines()[0][:80] if job_description else "Poste"),
         "competencies": cleaned,
     }

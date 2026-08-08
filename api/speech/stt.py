@@ -17,11 +17,10 @@ TRANSCRIBE_PROMPT = (
 
 def transcribe(audio_bytes: bytes, mime_type: str = "audio/webm",
                 interview_id: str | None = None, user_id: str | None = None) -> str:
-    """Transcrit un extrait audio en texte. Renvoie une chaîne vide si aucune clé n'est configurée."""
+    """Transcrit un extrait audio en texte. Lève ai_gateway.AIError en cas d'échec."""
     client = ai_gateway.get_client()
     if not client:
-        print("[STT] No client – returning empty transcript")
-        return ""
+        raise ai_gateway.AIError("GEMINI_API_KEY manquant côté serveur — fonctionnalités IA indisponibles.")
 
     try:
         with ai_logging.timed_call("stt", ai_gateway.GEMINI_MODEL,
@@ -35,4 +34,4 @@ def transcribe(audio_bytes: bytes, mime_type: str = "audio/webm",
         return (response.text or "").strip()
     except Exception as e:
         print(f"[STT] Exception: {e}")
-        return ""
+        raise ai_gateway.AIError(f"Transcription audio en échec : {e}") from e

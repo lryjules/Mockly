@@ -2,10 +2,11 @@
 
 import json
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, g
 
 from api.db import get_db
 from api import ai_gateway
+from api import token_budget
 from api.user_helpers import get_informations_pro_for_session
 from api.security import limiter, validate_length
 from api.clerk_auth import require_auth, session_owned_by_current_user
@@ -18,7 +19,7 @@ MAX_FIELD_LEN = 200
 
 
 def generate_topics_with_ai(cv_data: dict, sector: str, company: str, role: str,
-                             session_id: str | None = None) -> dict:
+                             session_id: str | None = None, user_id: str | None = None) -> dict:
     prompt = f"""
 Tu es un expert RH spécialisé en entretiens. Génère des questions d'entretien ciblées.
 
@@ -48,26 +49,7 @@ Réponds UNIQUEMENT en JSON valide sans markdown:
   }}
 }}
 """
-    fallback = {
-        "topics": {
-            "questions_culture_entreprise": [
-                f"Pourquoi souhaitez-vous rejoindre {company or 'cette entreprise'} ?",
-                "Comment vous intégrez-vous dans une nouvelle équipe ?",
-                "Quelle est votre philosophie de travail ?"
-            ],
-            "questions_job_specifiques": [
-                f"Quelle est votre expérience dans le secteur {sector} ?",
-                "Décrivez un projet dont vous êtes particulièrement fier.",
-                f"Comment abordez-vous les défis techniques dans le domaine {sector} ?",
-                "Quelle est votre méthode pour gérer les délais serrés ?"
-            ],
-            "brain_teasers": [
-                "Si vous étiez un animal, lequel seriez-vous et pourquoi ?",
-                "Comment vendriez-vous de la glace à un Esquimau ?"
-            ]
-        }
-    }
-    return ai_call(prompt, fallback, context="topics_generation", session_id=session_id)
+    return ai_call(prompt, context="topics_generation", session_id=session_id, user_id=user_id)
 
 
 @topics_bp.route("/api/generate-interview-topics", methods=["POST"])
@@ -85,6 +67,10 @@ def generate_interview_topics():
     for field_name, field_value in (("sector", sector), ("company", company), ("role", role)):
         if err := validate_length(field_value, field_name, MAX_FIELD_LEN):
             return err
+
+    user_id = g.clerk_user_id
+    if not token_budget.has_budget(user_id):
+        return jsonify({"error": "Quota de tokens IA quotidien atteint. Réessaie demain, ou contacte ton établissement pour l'augmenter."}), 402
 
     with get_db() as conn:
         if not session_owned_by_current_user(conn, session_id):
@@ -104,7 +90,10 @@ def generate_interview_topics():
             f"objectif={user_profile.get('current_goal') or 'non renseigné'}."
         )
 
-    topics = generate_topics_with_ai(cv_data, sector, company, role, session_id=session_id)
+    try:
+        topics = generate_topics_with_ai(cv_data, sector, company, role, session_id=session_id, user_id=user_id)
+    except ai_gateway.AIError as e:
+        return jsonify({"error": str(e)}), 502
 
     with get_db() as conn:
         conn.execute(
