@@ -2,6 +2,7 @@
 
 import uuid
 import json
+import traceback
 from pathlib import Path
 
 from flask import Blueprint, request, jsonify, g
@@ -116,7 +117,12 @@ def upload_cv():
     session_id = str(uuid.uuid4())
     filename = f"{session_id}{ext}"
     filepath = str(UPLOADS_DIR / filename)
-    file.save(filepath)
+    try:
+        file.save(filepath)
+    except Exception as e:
+        print(f"[cv_routes] Échec de l'écriture du fichier {filepath}: {e}")
+        traceback.print_exc()
+        return jsonify({"error": f"Impossible d'enregistrer le fichier côté serveur : {e}"}), 500
 
     try:
         cv_text = extract_cv_text(filepath)
@@ -134,16 +140,21 @@ def upload_cv():
     except ai_gateway.AIError as e:
         return jsonify({"error": str(e)}), 502
 
-    with get_db() as conn:
-        conn.execute(
-            "INSERT INTO sessions (id, user_id, cv_filename, cv_text, cv_data, analysis) VALUES (%s,%s,%s,%s,%s,%s)",
-            (session_id, user_id, file.filename, cv_text, json.dumps(cv_data), json.dumps(analysis))
-        )
+    try:
+        with get_db() as conn:
+            conn.execute(
+                "INSERT INTO sessions (id, user_id, cv_filename, cv_text, cv_data, analysis) VALUES (%s,%s,%s,%s,%s,%s)",
+                (session_id, user_id, file.filename, cv_text, json.dumps(cv_data), json.dumps(analysis))
+            )
 
-    # Alimente l'arbre de compétences avec les compétences déclarées du CV
-    # (visibles côté front mais "grisées" tant qu'aucune évaluation réelle n'a eu lieu).
-    if user_id:
-        profile_engine.seed_declared_competencies(user_id, cv_data.get("competences", []))
+        # Alimente l'arbre de compétences avec les compétences déclarées du CV
+        # (visibles côté front mais "grisées" tant qu'aucune évaluation réelle n'a eu lieu).
+        if user_id:
+            profile_engine.seed_declared_competencies(user_id, cv_data.get("competences", []))
+    except Exception as e:
+        print(f"[cv_routes] Échec après analyse IA (session_id={session_id}): {e}")
+        traceback.print_exc()
+        return jsonify({"error": f"Échec de l'enregistrement du CV analysé : {e}"}), 500
 
     return jsonify({
         "session_id": session_id,

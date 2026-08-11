@@ -19,6 +19,7 @@ Routes (voir api/routes/ pour le détail) :
 """
 
 import os
+import traceback
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -84,6 +85,11 @@ def handle_server_error(e):
     # Historique : une erreur non-JSON ici (page HTML Flask par défaut) casse
     # le frontend, qui fait toujours `response.json()` sans vérifier le
     # content-type ("Unexpected token '<' ... is not valid JSON").
+    # Trace explicitement sur stdout (visible dans les logs Render) : sans ça,
+    # une exception non prévue par une route donne "Erreur serveur interne"
+    # sans aucun moyen de savoir pourquoi, ni ici ni côté client.
+    print(f"[500] {request.method} {request.path} :")
+    traceback.print_exc()
     if request.path.startswith("/api/"):
         return jsonify({"error": "Erreur serveur interne"}), 500
     return e, 500
