@@ -24,17 +24,19 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_MODEL = "gemini-flash-latest"
 
 # Le SDK retente par défaut jusqu'à 5 fois (backoff exponentiel 1s/2s/4s/8s...,
-# y compris sur 429) avant de lever — jusqu'à ~20s de latence supplémentaire
-# par appel en échec. Sur un 429 persistant (ex. crédits Gemini épuisés), ce
-# délai dépasse le timeout du proxy (Render), qui renvoie alors sa propre page
-# d'erreur HTML au lieu de notre réponse JSON — d'où le "Unexpected token '<'"
-# côté front. On limite donc les tentatives ET le temps par tentative pour
-# échouer vite : mieux vaut un vrai message d'erreur rapide qu'une attente qui
-# risque de dépasser le timeout du proxy. Pire cas ≈ 10s + 0.3s + 10s ≈ 20.3s,
-# confortablement sous un timeout proxy typique de 30s.
+# y compris sur 429) avant de lever. On limite les tentatives pour échouer
+# raisonnablement vite sur une erreur persistante (ex. crédits Gemini épuisés).
+#
+# Le timeout par tentative doit rester généreux : un prompt volumineux
+# (ex. cv_parse, ~8000 caractères de CV, réponse JSON structurée détaillée)
+# peut légitimement prendre 10-20s chez Gemini Flash — un timeout de 10s
+# faisait échouer ces appels valides avec un faux 504 DEADLINE_EXCEEDED.
+# La vraie contrainte à respecter est le timeout du worker gunicorn (voir
+# Procfile, --timeout 120), pas un timeout de proxy plus court : on reste
+# large ici (~25s/tentative) et c'est gunicorn qui borne le pire cas.
 _HTTP_OPTIONS = genai_types.HttpOptions(
-    timeout=10_000,  # ms, par tentative
-    retry_options=genai_types.HttpRetryOptions(attempts=2, initial_delay=0.3, max_delay=1.0),
+    timeout=25_000,  # ms, par tentative
+    retry_options=genai_types.HttpRetryOptions(attempts=2, initial_delay=0.5, max_delay=2.0),
 )
 
 if GEMINI_API_KEY:
