@@ -82,7 +82,20 @@
       );
     }
 
-    .competency-meta { font-size: 0.72rem; color: var(--vscode-text-muted); margin-top: 0.3rem; }
+    .competency-meta { font-size: 0.72rem; color: var(--vscode-text-muted); margin-top: 0.3rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+
+    .competency-rank-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      background: rgba(86, 156, 214, 0.14);
+      border: 1px solid rgba(86, 156, 214, 0.35);
+      color: var(--vscode-blue);
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.12rem 0.55rem;
+      border-radius: 999px;
+    }
   </style>
 </head>
 <body>

@@ -22,6 +22,13 @@ function renderCompetencyRow(comp) {
         ? `${comp.evaluation_count} évaluation${comp.evaluation_count > 1 ? 's' : ''}`
         : 'Mentionnée sur ton CV, jamais testée à l\'oral';
 
+    // Classement anonyme au sein de l'école, uniquement sur les hard skills
+    // (technique/métier) et seulement si l'échantillon est assez grand côté
+    // backend (profile_engine.MIN_STUDENTS_FOR_RANKING) — jamais de nom d'élève.
+    const rankBadge = comp.school_rank
+        ? `<span class="competency-rank-badge" title="Ton rang parmi les élèves de ton école évalués sur cette compétence">🏆 #${comp.school_rank}/${comp.school_rank_total} de l'école</span>`
+        : '';
+
     return `
         <div class="competency-row ${confirmed ? '' : 'unconfirmed'}">
             <div class="competency-row-header">
@@ -31,7 +38,7 @@ function renderCompetencyRow(comp) {
             <div class="competency-bar-track">
                 <div class="competency-bar-fill" style="width:${barWidth}%"></div>
             </div>
-            <div class="competency-meta">${meta}</div>
+            <div class="competency-meta">${meta}${rankBadge}</div>
         </div>
     `;
 }

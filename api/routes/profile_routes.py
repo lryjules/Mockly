@@ -90,6 +90,21 @@ def readiness_check():
 @profile_bp.route("/api/profile/competencies", methods=["GET"])
 @require_auth
 def get_profile_competencies():
-    """Arbre de compétences complet, groupé par catégorie, pour la page 'Ma progression'."""
-    get_or_create_local_user(g.clerk_user_id)
-    return jsonify(profile_engine.get_competency_tree(g.clerk_user_id))
+    """Arbre de compétences complet, groupé par catégorie, pour la page 'Ma progression'.
+
+    Les compétences "hard skill" (technique/métier) confirmées reçoivent en
+    plus un classement anonyme au sein de l'école de l'étudiant (rank/total
+    sur les autres élèves ayant aussi cette compétence évaluée) — voir
+    profile_engine.get_skill_rankings."""
+    user = get_or_create_local_user(g.clerk_user_id)
+    tree = profile_engine.get_competency_tree(g.clerk_user_id)
+
+    rankings = profile_engine.get_skill_rankings(g.clerk_user_id, user.get("school_id"))
+    for category in profile_engine.RANKING_CATEGORIES:
+        for comp in tree.get(category, []):
+            ranking = rankings.get(comp["name"])
+            if ranking:
+                comp["school_rank"] = ranking["rank"]
+                comp["school_rank_total"] = ranking["total"]
+
+    return jsonify(tree)

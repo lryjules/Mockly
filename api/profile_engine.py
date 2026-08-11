@@ -17,6 +17,14 @@ from api.db import get_db
 RECENCY_WEIGHT = 0.4
 DEFAULT_NEUTRAL_SCORE = 50.0
 
+# "Hard skills" (au sens de ce classement) = compétences techniques ou métier,
+# à l'exclusion des soft skills — un classement de "empathie" ou "communication"
+# entre élèves n'a pas de sens, contrairement à "Python" ou "Finance".
+RANKING_CATEGORIES = ("technique", "métier")
+# En dessous, l'échantillon est trop petit pour être parlant (un élève seul
+# sur une compétence de niche se verrait "1er sur 1") : on n'affiche rien.
+MIN_STUDENTS_FOR_RANKING = 5
+
 _SCHEMA_STATEMENTS = [
     """
     CREATE TABLE IF NOT EXISTS student_competency (
@@ -223,6 +231,40 @@ def get_competency_tree(student_id: str) -> dict:
         tree[category].sort(key=lambda c: (-c["confirmed"], -c["current_score"]))
 
     return tree
+
+
+def get_skill_rankings(student_id: str, school_id: str | None) -> dict[str, dict]:
+    """Renvoie {nom_compétence: {"rank": int, "total": int}} pour les "hard
+    skills" (technique/métier) de cet étudiant, comparées au reste des élèves
+    RÉELLEMENT évalués sur cette même compétence dans son école.
+
+    Anonyme par construction : seul le rang de l'étudiant appelant est
+    renvoyé, jamais l'identité ni le score des autres élèves. N'affiche rien
+    (dict vide pour cette compétence) si l'école a moins de
+    MIN_STUDENTS_FOR_RANKING élèves évalués sur cette compétence.
+    """
+    if not school_id:
+        return {}
+
+    with get_db() as conn:
+        rows = conn.execute(
+            f"""
+            WITH ranked AS (
+                SELECT sc.student_id, sc.name,
+                       RANK() OVER (PARTITION BY sc.name ORDER BY sc.current_score DESC) AS rank,
+                       COUNT(*) OVER (PARTITION BY sc.name) AS total
+                FROM student_competency sc
+                JOIN users u ON u.id = sc.student_id
+                WHERE u.school_id = %s
+                  AND sc.category IN ({','.join(['%s'] * len(RANKING_CATEGORIES))})
+                  AND sc.evaluation_count > 0
+            )
+            SELECT name, rank, total FROM ranked WHERE student_id = %s AND total >= %s
+            """,
+            (school_id, *RANKING_CATEGORIES, student_id, MIN_STUDENTS_FOR_RANKING),
+        ).fetchall()
+
+    return {row["name"]: {"rank": row["rank"], "total": row["total"]} for row in rows}
 
 
 def finalize_interview_session(student_id: str, session_id: str,
