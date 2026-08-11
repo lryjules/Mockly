@@ -65,7 +65,16 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def get_competency(student_id: str, name: str) -> dict | None:
+def get_competency(student_id: str, name: str, conn=None) -> dict | None:
+    """Si `conn` est fourni, l'utilise directement (pas de nouvelle connexion
+    Postgres) — indispensable pour les appelants qui bouclent sur plusieurs
+    compétences (voir seed_declared_competencies/update_profile_tree/
+    compute_readiness_score), qui ouvraient sinon une connexion par nom."""
+    if conn is not None:
+        return conn.execute(
+            "SELECT * FROM student_competency WHERE student_id = %s AND name = %s",
+            (student_id, name),
+        ).fetchone()
     with get_db() as conn:
         return conn.execute(
             "SELECT * FROM student_competency WHERE student_id = %s AND name = %s",
@@ -87,13 +96,28 @@ def get_all_competencies(student_id: str, evaluated_only: bool = False) -> list[
 
 
 def get_or_create_competency(student_id: str, name: str, category: str = "autre",
-                               declared: bool = False) -> dict:
+                               declared: bool = False, conn=None) -> dict:
     """Renvoie la compétence existante, ou la crée.
 
     declared=True ne s'applique qu'à la création : si la compétence existe déjà
     (même juste déclarée), on ne l'écrase pas ici — seule update_profile_tree
     modifie current_score/evaluation_count suite à une vraie évaluation.
-    """
+
+    Passe `conn` pour réutiliser une connexion déjà ouverte plutôt que d'en
+    ouvrir une nouvelle (voir get_competency)."""
+    if conn is not None:
+        existing = get_competency(student_id, name, conn=conn)
+        if existing:
+            return existing
+        conn.execute(
+            """INSERT INTO student_competency
+               (student_id, name, category, current_score, evaluation_count, declared, updated_at)
+               VALUES (%s, %s, %s, 0, 0, %s, %s)
+               ON CONFLICT (student_id, name) DO NOTHING""",
+            (student_id, name, category, int(declared), _now()),
+        )
+        return get_competency(student_id, name, conn=conn)
+
     existing = get_competency(student_id, name)
     if existing:
         return existing
@@ -115,14 +139,44 @@ def seed_declared_competencies(student_id: str, names: list[str],
 
     N'écrase jamais une compétence déjà connue (déclarée ou déjà évaluée) :
     sert uniquement à peupler l'arbre pour les compétences jamais rencontrées.
+
+    Un seul INSERT multi-lignes sur UNE connexion, quel que soit le nombre de
+    compétences — la version précédente ouvrait jusqu'à 3 connexions Postgres
+    PAR compétence (via get_or_create_competency), ce qui pouvait épuiser le
+    pool de connexions Supabase sur un CV listant beaucoup de compétences et
+    bloquer le worker gunicorn jusqu'à son timeout (30s) → 500 sans réponse
+    JSON exploitable. Observé en prod sur un CV avec une longue liste de
+    compétences techniques.
     """
     category_map = category_map or {}
     cleaned_names = {n.strip() for n in names if n and n.strip()}
-    for name in cleaned_names:
-        get_or_create_competency(student_id, name, category_map.get(name, "autre"), declared=True)
+    if not cleaned_names:
+        return
+
+    now = _now()
+    rows = [(student_id, name, category_map.get(name, "autre"), 0, 0, 1, now) for name in cleaned_names]
+    placeholders = ", ".join(["(%s,%s,%s,%s,%s,%s,%s)"] * len(rows))
+    flat_params = [value for row in rows for value in row]
+
+    with get_db() as conn:
+        conn.execute(
+            f"""INSERT INTO student_competency
+               (student_id, name, category, current_score, evaluation_count, declared, updated_at)
+               VALUES {placeholders}
+               ON CONFLICT (student_id, name) DO NOTHING""",
+            flat_params,
+        )
 
 
-def save_evaluation_history(student_competency_id: int, session_id: str, score: float, feedback: str = "") -> None:
+def save_evaluation_history(student_competency_id: int, session_id: str, score: float,
+                             feedback: str = "", conn=None) -> None:
+    if conn is not None:
+        conn.execute(
+            """INSERT INTO competency_evaluation (student_competency_id, session_id, score, feedback, created_at)
+               VALUES (%s, %s, %s, %s, %s)""",
+            (student_competency_id, session_id, score, feedback, _now()),
+        )
+        return
     with get_db() as conn:
         conn.execute(
             """INSERT INTO competency_evaluation (student_competency_id, session_id, score, feedback, created_at)
@@ -148,20 +202,25 @@ def update_profile_tree(student_id: str, session_id: str,
     Moyenne pondérée avec poids sur la récence (RECENCY_WEIGHT). Une compétence
     qui n'existait que "déclarée" (declared=True, evaluation_count=0) bascule
     naturellement en "confirmée" dès son premier evaluation_count > 0.
+
+    Une seule connexion Postgres pour tout le lot de compétences (voir
+    seed_declared_competencies pour le même correctif appliqué au seeding) —
+    un entretien évalue plusieurs compétences d'un coup, chacune faisant
+    auparavant 3 aller-retours de connexion séparés.
     """
     category_map = category_map or {}
     feedback_map = feedback_map or {}
 
-    for name, new_score in competency_scores.items():
-        category = category_map.get(name, "autre")
-        comp = get_or_create_competency(student_id, name, category)
+    with get_db() as conn:
+        for name, new_score in competency_scores.items():
+            category = category_map.get(name, "autre")
+            comp = get_or_create_competency(student_id, name, category, conn=conn)
 
-        if comp["evaluation_count"] == 0:
-            updated_score = new_score
-        else:
-            updated_score = comp["current_score"] * (1 - RECENCY_WEIGHT) + new_score * RECENCY_WEIGHT
+            if comp["evaluation_count"] == 0:
+                updated_score = new_score
+            else:
+                updated_score = comp["current_score"] * (1 - RECENCY_WEIGHT) + new_score * RECENCY_WEIGHT
 
-        with get_db() as conn:
             conn.execute(
                 """UPDATE student_competency
                    SET current_score = %s, evaluation_count = evaluation_count + 1,
@@ -170,7 +229,7 @@ def update_profile_tree(student_id: str, session_id: str,
                 (updated_score, category, _now(), comp["id"]),
             )
 
-        save_evaluation_history(comp["id"], session_id, new_score, feedback_map.get(name, ""))
+            save_evaluation_history(comp["id"], session_id, new_score, feedback_map.get(name, ""), conn=conn)
 
 
 def compute_readiness_score(student_id: str, competencies: list[dict]) -> dict:
@@ -188,19 +247,20 @@ def compute_readiness_score(student_id: str, competencies: list[dict]) -> dict:
     total_weight = 0.0
     evaluated_count = 0
 
-    for comp in competencies:
-        name = comp["name"]
-        weight = comp.get("weight", 2)
-        student_comp = get_competency(student_id, name)
+    with get_db() as conn:
+        for comp in competencies:
+            name = comp["name"]
+            weight = comp.get("weight", 2)
+            student_comp = get_competency(student_id, name, conn=conn)
 
-        if student_comp and student_comp["evaluation_count"] > 0:
-            score = student_comp["current_score"]
-            evaluated_count += 1
-        else:
-            score = neutral_score
+            if student_comp and student_comp["evaluation_count"] > 0:
+                score = student_comp["current_score"]
+                evaluated_count += 1
+            else:
+                score = neutral_score
 
-        total_weighted_score += score * weight
-        total_weight += weight
+            total_weighted_score += score * weight
+            total_weight += weight
 
     readiness_score = round(total_weighted_score / total_weight, 1) if total_weight else 0.0
     coverage = round(evaluated_count / len(competencies), 2)
