@@ -107,6 +107,7 @@ async function getCurrentUser(opts = {}) {
         // suffit pas à contourner ça).
         _cachedMe = null;
         _pendingMePromise = null;
+        _clearMeCache();
     }
     if (_cachedMe) return _cachedMe;
     if (_pendingMePromise) return _pendingMePromise;
@@ -146,6 +147,7 @@ async function getCurrentUser(opts = {}) {
 function invalidateUserCache() {
     _cachedMe = null;
     _pendingMePromise = null;
+    _clearMeCache();
 }
 
 async function fetchAuthed(url, options = {}) {
@@ -157,6 +159,49 @@ async function fetchAuthed(url, options = {}) {
 
 function _wait(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Cache /api/me entre navigations complètes de page (sessionStorage, pas la
+// variable _cachedMe : chaque page recharge tout son JS depuis zéro, donc une
+// variable en mémoire ne survit jamais à une navigation classique — seul le
+// bfcache la préserve, déjà géré séparément ci-dessous). Volontairement isolé
+// de _cachedMe/_pendingMePromise et jamais lu par getCurrentUser() : ne
+// touche pas au mécanisme qui a causé la boucle de redirection historique
+// (voir le commentaire de requireSignedIn ci-dessous). TTL très court (20s) :
+// assez pour ne pas retaper /api/me à chaque clic de nav sur quelques
+// secondes, assez court pour qu'une éventuelle donnée périmée se corrige
+// quasi immédiatement d'elle-même.
+const MOCKLY_ME_CACHE_KEY = 'mockly_me_cache_v1';
+const MOCKLY_ME_CACHE_TTL_MS = 20_000;
+
+function _readMeCache(sessionId) {
+    try {
+        const raw = sessionStorage.getItem(MOCKLY_ME_CACHE_KEY);
+        if (!raw) return null;
+        const entry = JSON.parse(raw);
+        if (entry.sessionId !== sessionId) return null;
+        if (Date.now() - entry.ts > MOCKLY_ME_CACHE_TTL_MS) return null;
+        return entry.me;
+    } catch (error) {
+        return null;
+    }
+}
+
+function _writeMeCache(sessionId, me) {
+    try {
+        sessionStorage.setItem(MOCKLY_ME_CACHE_KEY, JSON.stringify({ sessionId, me, ts: Date.now() }));
+    } catch (error) {
+        // Quota dépassé ou stockage indisponible (ex. navigation privée sur
+        // certains navigateurs) : tant pis, on retapera /api/me la prochaine fois.
+    }
+}
+
+function _clearMeCache() {
+    try {
+        sessionStorage.removeItem(MOCKLY_ME_CACHE_KEY);
+    } catch (error) {
+        // ignore
+    }
 }
 
 async function requireSignedIn(redirectTo = 'auth.html') {
@@ -180,6 +225,17 @@ async function requireSignedIn(redirectTo = 'auth.html') {
         console.warn('[MocklyAuth] requireSignedIn() : toujours pas de session après la tentative, redirection', redirectTo);
         window.location.replace(redirectTo);
         return null;
+    }
+
+    // Fast-path : /api/me déjà vérifié il y a moins de 20s pour CETTE session
+    // Clerk précise. En cas de doute (rien en cache, expiré, session différente
+    // — ex. changement de compte), on retombe directement sur le chemin
+    // réseau existant ci-dessous, inchangé.
+    const cachedMe = _readMeCache(Clerk.session.id);
+    if (cachedMe) {
+        console.log('[MocklyAuth] requireSignedIn() : /api/me servi depuis le cache (< 20s)');
+        _cachedMe = cachedMe;
+        return cachedMe;
     }
 
     // Appel /api/me totalement autonome, SANS passer par getCurrentUser()/
@@ -221,6 +277,7 @@ async function requireSignedIn(redirectTo = 'auth.html') {
 
     const me = await res.json();
     _cachedMe = me; // évite un appel /api/me redondant si getCurrentUser() est rappelé juste après sur cette page
+    _writeMeCache(Clerk.session.id, me);
     return me;
 }
 
