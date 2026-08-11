@@ -14,6 +14,7 @@ from pathlib import Path
 
 import psycopg
 from psycopg.rows import Row
+from flask import g, has_app_context
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
@@ -54,7 +55,7 @@ def _flex_row_factory(cursor):
     return make_row
 
 
-def get_db() -> psycopg.Connection[Row]:
+def _connect() -> psycopg.Connection[Row]:
     if not DATABASE_URL:
         raise RuntimeError(
             "DATABASE_URL manquant : configure la chaîne de connexion Postgres "
@@ -76,6 +77,58 @@ def get_db() -> psycopg.Connection[Row]:
             "utilise plutôt le 'Session pooler' de Supabase (host "
             "'...pooler.supabase.com'), compatible IPv4."
         ) from e
+
+
+class _RequestScopedConn:
+    """Proxy retourné par get_db() : réutilise LA MÊME connexion Postgres
+    pour tous les get_db() d'une même requête Flask (stockée dans `g`) au
+    lieu d'en ouvrir une nouvelle à chaque appel — un handler typique en
+    ouvrait 2 à 7 (une par accès DB, plus une par appel IA rien que pour la
+    journalisation), chacune payant une poignée de main TCP+TLS+Postgres
+    complète vers le pooler Supabase.
+
+    Seul le `with` le plus englobant (premier entré) commit/rollback pour de
+    vrai à la sortie — les appels imbriqués (ex: seed_declared_competencies
+    appelé depuis l'intérieur d'un autre `with get_db()`) réutilisent la
+    connexion sans clôturer prématurément la transaction du bloc englobant.
+    La connexion physique n'est fermée qu'au teardown de la requête
+    (voir close_request_db, enregistré dans app.py)."""
+
+    def __enter__(self) -> psycopg.Connection[Row]:
+        conn = getattr(g, "_db_conn", None)
+        if conn is None or conn.closed:
+            conn = _connect()
+            g._db_conn = conn
+        g._db_depth = getattr(g, "_db_depth", 0) + 1
+        self._is_outermost = g._db_depth == 1
+        self._conn = conn
+        return conn
+
+    def __exit__(self, exc_type, exc, tb):
+        g._db_depth -= 1
+        if self._is_outermost:
+            if exc_type is None:
+                self._conn.commit()
+            else:
+                self._conn.rollback()
+        return False
+
+
+def get_db() -> psycopg.Connection[Row]:
+    """Hors contexte de requête Flask (scripts, init_db() au démarrage) :
+    connexion classique, une par appel, fermée à la sortie du `with` — pas
+    de `g` à accrocher. Dans une requête : voir _RequestScopedConn ci-dessus."""
+    if has_app_context():
+        return _RequestScopedConn()
+    return _connect()
+
+
+def close_request_db(_exc=None) -> None:
+    """Ferme la connexion partagée de la requête, si une a été ouverte.
+    À enregistrer via app.teardown_appcontext (voir app.py)."""
+    conn = g.pop("_db_conn", None)
+    if conn is not None and not conn.closed:
+        conn.close()
 
 
 # Chaque instruction séparément (pas un gros script exécuté d'un coup) :

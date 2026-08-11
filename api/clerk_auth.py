@@ -24,6 +24,13 @@ from api.db import get_db
 
 CLERK_SECRET_KEY = os.environ.get("CLERK_SECRET_KEY", "")
 CLERK_PUBLISHABLE_KEY = os.environ.get("CLERK_PUBLISHABLE_KEY", "")
+# Optionnelle (Clerk Dashboard > API Keys > Advanced > "JWT public key") :
+# si fournie, le SDK vérifie la signature du token localement (RSA, la clé
+# publique ne change pas) au lieu d'aller chercher le JWKS sur les serveurs
+# Clerk. Sans elle, le SDK fait cet appel réseau au premier token vu par
+# chaque worker puis le met en cache 5 min — donc déjà peu coûteux en usage
+# normal, mais notable juste après un cold start (Render free tier).
+CLERK_JWT_KEY = os.environ.get("CLERK_JWT_KEY", "")
 
 # Domaines autorisés à présenter un token Clerk à cette API (anti-rejeu depuis
 # un autre site). Ex: "http://localhost:5001,https://mockly.onrender.com".
@@ -44,6 +51,14 @@ def is_configured() -> bool:
     return _clerk_client is not None
 
 
+def _auth_options() -> AuthenticateRequestOptions:
+    return AuthenticateRequestOptions(
+        secret_key=CLERK_SECRET_KEY,
+        jwt_key=CLERK_JWT_KEY or None,
+        authorized_parties=_AUTHORIZED_PARTIES or None,
+    )
+
+
 def require_auth(f):
     """Vérifie le token Clerk de la requête ; sinon 401. Expose `g.clerk_user_id`."""
     @wraps(f)
@@ -51,10 +66,7 @@ def require_auth(f):
         if not _clerk_client:
             return jsonify({"error": "Authentification non configurée côté serveur (CLERK_SECRET_KEY manquant)"}), 500
 
-        options = AuthenticateRequestOptions(
-            secret_key=CLERK_SECRET_KEY,
-            authorized_parties=_AUTHORIZED_PARTIES or None,
-        )
+        options = _auth_options()
         try:
             state = _clerk_client.authenticate_request(request, options)
         except Exception:
@@ -80,10 +92,7 @@ def optional_auth(f):
         g.clerk_user_id = None
         auth_header = request.headers.get("Authorization", "")
         if _clerk_client and auth_header.startswith("Bearer "):
-            options = AuthenticateRequestOptions(
-                secret_key=CLERK_SECRET_KEY,
-                authorized_parties=_AUTHORIZED_PARTIES or None,
-            )
+            options = _auth_options()
             try:
                 state = _clerk_client.authenticate_request(request, options)
                 if state.is_signed_in and state.payload:

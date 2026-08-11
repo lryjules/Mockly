@@ -27,7 +27,7 @@ load_dotenv()
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
-from api.db import init_db
+from api.db import init_db, close_request_db
 from api import ai_gateway
 from api.security import limiter
 
@@ -57,7 +57,20 @@ if _allowed_origins:
 # compris) : au-delà, Flask coupe la connexion avant même de lire le corps.
 app.config["MAX_CONTENT_LENGTH"] = 15 * 1024 * 1024  # 15 Mo
 
+# Sans ça, send_from_directory (pages_routes.py) n'ajoute aucun Cache-Control :
+# chaque navigation entre pages re-télécharge styles.css/*.js pour rien. Pas
+# de hash dans les noms de fichiers ici (pas de build step), donc on reste
+# modéré (5 min) plutôt qu'un cache long — un déploiement se propage vite
+# sans qu'un visiteur reste bloqué sur une vieille version trop longtemps.
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 300
+
 limiter.init_app(app)
+
+# Une seule connexion Postgres réutilisée par tous les get_db() d'une même
+# requête (voir api/db.py::_RequestScopedConn), fermée ici à la fin de
+# chaque requête — avant, chaque get_db() ouvrait sa propre connexion,
+# jusqu'à 5-7 par requête (voir commit sur la latence).
+app.teardown_appcontext(close_request_db)
 
 
 @app.errorhandler(413)
