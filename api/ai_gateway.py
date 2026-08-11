@@ -28,11 +28,13 @@ GEMINI_MODEL = "gemini-flash-latest"
 # par appel en échec. Sur un 429 persistant (ex. crédits Gemini épuisés), ce
 # délai dépasse le timeout du proxy (Render), qui renvoie alors sa propre page
 # d'erreur HTML au lieu de notre réponse JSON — d'où le "Unexpected token '<'"
-# côté front. On limite donc les tentatives pour échouer vite : mieux vaut un
-# vrai message d'erreur rapide qu'une attente qui casse la réponse JSON.
+# côté front. On limite donc les tentatives ET le temps par tentative pour
+# échouer vite : mieux vaut un vrai message d'erreur rapide qu'une attente qui
+# risque de dépasser le timeout du proxy. Pire cas ≈ 10s + 0.3s + 10s ≈ 20.3s,
+# confortablement sous un timeout proxy typique de 30s.
 _HTTP_OPTIONS = genai_types.HttpOptions(
-    timeout=20_000,  # ms, par tentative
-    retry_options=genai_types.HttpRetryOptions(attempts=2, initial_delay=0.5, max_delay=2.0),
+    timeout=10_000,  # ms, par tentative
+    retry_options=genai_types.HttpRetryOptions(attempts=2, initial_delay=0.3, max_delay=1.0),
 )
 
 if GEMINI_API_KEY:
