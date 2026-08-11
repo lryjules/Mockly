@@ -118,7 +118,14 @@ def upload_cv():
     filepath = str(UPLOADS_DIR / filename)
     file.save(filepath)
 
-    cv_text = extract_cv_text(filepath)
+    try:
+        cv_text = extract_cv_text(filepath)
+    except Exception as e:
+        # Fichier corrompu, protégé par mot de passe, ou toute autre structure
+        # que pdfminer/python-docx ne sait pas parser — pas une erreur serveur,
+        # le fichier lui-même est en cause.
+        print(f"[cv_routes] Extraction échouée pour {filepath}: {e}")
+        return jsonify({"error": "Impossible de lire ce fichier. Il est peut-être corrompu, protégé par mot de passe, ou dans un format inattendu."}), 400
     if not cv_text.strip():
         cv_text = "[Texte non extractable — vérifiez que le PDF n'est pas une image scannée]"
 
