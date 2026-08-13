@@ -63,6 +63,29 @@ body {
     fill: none;
     flex-shrink: 0;
     vertical-align: -0.125em;
+    margin-right: 0.42em;
+}
+
+/* Icônes seules (badges, avatars, pastilles centrées) : pas de texte
+   adjacent dans le même conteneur, un margin-right y décentrerait l'icône. */
+.avatar .icon,
+.empty-icon .icon,
+.feature-icon .icon,
+.flow-step-icon .icon,
+.hero-avatar .icon,
+.interview-avatar .icon,
+.node-icon .icon,
+.profile-empty-icon .icon,
+.sector-icon .icon,
+.showcase-icon .icon,
+.upload-icon .icon,
+.welcome-icon .icon,
+.msg-avatar .icon,
+.mic-btn .icon,
+.refresh-btn .icon,
+.token-bonus-save .icon,
+.modal-close-btn .icon {
+    margin-right: 0;
 }
 
 .icon-spin {
@@ -169,7 +192,7 @@ body {
 .upload-zone {
     border: 2px dashed var(--vscode-border);
     border-radius: 4px;
-    padding: 2rem 1rem;
+    padding: 2.3rem 1.3rem;
     text-align: center;
     cursor: pointer;
     transition: var(--transition);
@@ -368,7 +391,7 @@ body {
     background: var(--vscode-sidebar);
     border: 1px solid var(--vscode-border);
     border-radius: 8px;
-    padding: 1rem;
+    padding: 1.25rem;
     cursor: move;
     transition: box-shadow 0.2s ease, border-color 0.2s ease,
         opacity 0.22s ease, scale 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -1216,7 +1239,7 @@ body {
     background: linear-gradient(135deg, rgba(86, 156, 214, 0.16), rgba(37, 37, 38, 0.95));
     border: 1px solid var(--vscode-border);
     border-radius: 16px;
-    padding: 2rem;
+    padding: 2.4rem;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
     overflow: hidden;
 }
@@ -1331,7 +1354,7 @@ body {
     background: rgba(30, 30, 30, 0.8);
     border: 1px solid var(--vscode-border);
     border-radius: 12px;
-    padding: 1.2rem;
+    padding: 1.5rem;
 }
 
 .hero-panel h3 {
@@ -1359,7 +1382,7 @@ body {
     background: var(--vscode-sidebar);
     border: 1px solid var(--vscode-border);
     border-radius: 14px;
-    padding: 1.3rem;
+    padding: 1.7rem;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
 }
 
@@ -1379,7 +1402,7 @@ body {
     background: rgba(45, 45, 48, 0.7);
     border: 1px solid var(--vscode-border);
     border-radius: 10px;
-    padding: 1.2rem 1rem;
+    padding: 1.5rem 1.3rem;
     transition: var(--transition);
 }
 
@@ -1496,8 +1519,8 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 0.9rem;
-    padding: 1.8rem 1rem;
+    gap: 1rem;
+    padding: 1.9rem 1.2rem;
     border-radius: 16px;
     border: 1px solid var(--vscode-border);
     background: linear-gradient(160deg, var(--sector-tint, rgba(86, 156, 214, 0.16)), rgba(37, 37, 38, 0.9));
@@ -1552,7 +1575,7 @@ body {
 .flow-step {
     position: relative;
     text-align: center;
-    padding: 1.4rem 1rem;
+    padding: 1.7rem 1.3rem;
     border-radius: 12px;
     background: rgba(45, 45, 48, 0.6);
     border: 1px solid var(--vscode-border);
