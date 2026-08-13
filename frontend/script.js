@@ -130,10 +130,10 @@ function clearWorkspace() {
 
     const generateBtn = document.getElementById('generateBtn');
     generateBtn.disabled = false;
-    generateBtn.innerHTML = '✨ Générer la carte mentale';
+    generateBtn.innerHTML = `${mIcon('sparkle')} Générer la carte mentale`;
 
     document.getElementById('uploadZone').innerHTML = `
-        <div class="upload-icon">📄</div>
+        <div class="upload-icon">${mIcon('file-text')}</div>
         <div class="upload-text">Glissez votre CV ici</div>
         <div class="upload-hint">PDF ou DOCX</div>
     `;
@@ -175,7 +175,7 @@ function restoreWorkspaceState() {
     document.getElementById('infoSection').classList.remove('hidden');
     document.getElementById('contextSection').classList.remove('hidden');
     document.getElementById('uploadZone').innerHTML = `
-        <div class="upload-icon">✅</div>
+        <div class="upload-icon">${mIcon('check-circle')}</div>
         <div class="upload-text">CV analysé avec succès</div>
         <div class="upload-hint">Cliquez pour changer</div>
     `;
@@ -365,7 +365,7 @@ async function handleFileUpload(e) {
 
         // Reset upload zone
         uploadZone.innerHTML = `
-            <div class="upload-icon">✅</div>
+            <div class="upload-icon">${mIcon('check-circle')}</div>
             <div class="upload-text">CV analysé avec succès</div>
             <div class="upload-hint">Cliquez pour changer</div>
         `;
@@ -380,7 +380,7 @@ async function handleFileUpload(e) {
 
     } catch (error) {
         uploadZone.innerHTML = `
-            <div class="upload-icon">❌</div>
+            <div class="upload-icon">${mIcon('x')}</div>
             <div class="upload-text">Erreur: ${error.message}</div>
             <div class="upload-hint">Cliquez pour réessayer</div>
         `;
@@ -414,7 +414,7 @@ function createInitialClouds() {
     const conseilsNode = {
         id: 'conseils',
         type: 'conseil',
-        title: '💡 Conseils CV',
+        title: `${mIcon('lightbulb')} Conseils CV`,
         content: 'Conseils personnalisés basés sur votre profil',
         tags: appState.analysisData.conseils_cv.slice(0, 3),
         x: rootNode.x - 300,
@@ -428,7 +428,7 @@ function createInitialClouds() {
     const questionsNode = {
         id: 'questions',
         type: 'question',
-        title: '❓ Questions de préparation',
+        title: `${mIcon('help-circle')} Questions de préparation`,
         content: 'Questions clés pour votre entretien',
         tags: appState.analysisData.questions_preparation.slice(0, 3),
         x: rootNode.x + 300,
@@ -442,7 +442,7 @@ function createInitialClouds() {
     const secteursNode = {
         id: 'secteurs',
         type: 'secteur',
-        title: '🎯 Secteurs pertinents',
+        title: `${mIcon('target')} Secteurs pertinents`,
         content: 'Secteurs adaptés à votre profil',
         tags: appState.analysisData.sujets_entretien.secteurs.slice(0, 3),
         x: rootNode.x - 300,
@@ -456,7 +456,7 @@ function createInitialClouds() {
     const competencesNode = {
         id: 'competences',
         type: 'secteur',
-        title: '⭐ Compétences clés',
+        title: `${mIcon('star')} Compétences clés`,
         content: 'Compétences à valoriser',
         tags: appState.analysisData.sujets_entretien.competences_clés.slice(0, 3),
         x: rootNode.x + 300,
@@ -512,12 +512,12 @@ async function generateMindMap() {
         createChildNodes(topics, sector, company, role);
         saveWorkspaceState();
 
-        btn.innerHTML = 'Carte générée ✅';
+        btn.innerHTML = `Carte générée ${mIcon('check-circle')}`;
 
     } catch (error) {
         alert('Erreur: ' + error.message);
         btn.disabled = false;
-        btn.innerHTML = '✨ Générer la carte mentale';
+        btn.innerHTML = `${mIcon('sparkle')} Générer la carte mentale`;
     }
 }
 
@@ -532,7 +532,7 @@ function createChildNodes(topics, sector, company, role) {
     const conseilsNode = {
         id: 'conseils',
         type: 'conseil',
-        title: '💡 Conseils CV',
+        title: `${mIcon('lightbulb')} Conseils CV`,
         content: appState.analysisData.conseils_cv.join(' • '),
         tags: appState.analysisData.conseils_cv.slice(0, 5),
         x: rootNode.x - 300,
@@ -544,7 +544,7 @@ function createChildNodes(topics, sector, company, role) {
     const secteursNode = {
         id: 'secteurs',
         type: 'secteur',
-        title: '🎯 Secteurs Pertinents',
+        title: `${mIcon('target')} Secteurs Pertinents`,
         content: appState.analysisData.sujets_entretien.secteurs.join(' • '),
         tags: appState.analysisData.sujets_entretien.secteurs,
         x: rootNode.x - 300,
@@ -562,7 +562,7 @@ function createChildNodes(topics, sector, company, role) {
     const questionsNode = {
         id: 'questions-entretien',
         type: 'question',
-        title: `🎯 Questions d'Entretien - ${company || sector}`,
+        title: `${mIcon('target')} Questions d'Entretien - ${company || sector}`,
         content: `Culture Entreprise • Missions du Poste • Brain Teasers`,
         tags: allQuestions.slice(0, 9),
         x: rootNode.x + 350,
@@ -786,13 +786,13 @@ function makeNodeResizable(nodeEl, node) {
 
 function getNodeIcon(type) {
     const icons = {
-        cv: '📄',
-        conseil: '💡',
-        question: '❓',
-        secteur: '🎯',
-        chat: '💬'
+        cv: mIcon('file-text'),
+        conseil: mIcon('lightbulb'),
+        question: mIcon('help-circle'),
+        secteur: mIcon('target'),
+        chat: mIcon('message-circle')
     };
-    return icons[type] || '•';
+    return icons[type] || mIcon('target');
 }
 
 // Pendant un drag ou un pan, pointermove peut se déclencher bien plus souvent
@@ -1055,7 +1055,7 @@ function createResponseNode(questionText, parentNode) {
     const responseNode = {
         id: responseId,
         type: 'response',
-        title: '📝 Votre Réponse',
+        title: `${mIcon('edit')} Votre Réponse`,
         content: `Question: "${questionText}"`,
         x: parentNode.x + 350,
         y: parentNode.y + (responseNodeCounter * 50),
@@ -1106,7 +1106,7 @@ function renderResponseNode(node) {
 function renderPendingResponseContent(node, nodeEl) {
     nodeEl.innerHTML = `
         <div class="node-header">
-            <div class="node-icon response">📝</div>
+            <div class="node-icon response">${mIcon('edit')}</div>
             <div class="node-title">Votre Réponse</div>
         </div>
         <div class="node-content" style="font-size: 0.7rem; color: var(--vscode-text-muted); margin-bottom: 0.5rem;">
@@ -1182,7 +1182,7 @@ function renderEvaluationContent(responseNode, nodeEl) {
     // Remplacer le contenu du nuage avec l'évaluation
     nodeEl.innerHTML = `
         <div class="node-header">
-            <div class="node-icon response">✅</div>
+            <div class="node-icon response">${mIcon('check-circle')}</div>
             <div class="node-title">Évaluation IA</div>
         </div>
         <div class="node-content" style="font-size: 0.7rem; margin-bottom: 0.5rem;">
@@ -1196,7 +1196,7 @@ function renderEvaluationContent(responseNode, nodeEl) {
             <div style="margin-bottom: 0.5rem;">${escapeHtml(evaluation.evaluation)}</div>
 
             <div style="margin-top: 0.5rem;">
-                <strong style="color: var(--vscode-green);">✓ Points forts:</strong>
+                <strong style="color: var(--vscode-green);">${mIcon('check')} Points forts:</strong>
                 <ul style="margin: 0.25rem 0; padding-left: 1.25rem; font-size: 0.7rem;">
                     ${evaluation.points_forts.map(p => `<li>${escapeHtml(p)}</li>`).join('')}
                 </ul>
@@ -1211,7 +1211,7 @@ function renderEvaluationContent(responseNode, nodeEl) {
 
             ${evaluation.exemple_ameliore ? `
                 <div style="margin-top: 0.5rem;">
-                    <strong style="color: var(--vscode-blue);">💡 Exemple amélioré:</strong>
+                    <strong style="color: var(--vscode-blue);">${mIcon('lightbulb')} Exemple amélioré:</strong>
                     <div style="margin-top: 0.25rem; padding: 0.5rem; background: rgba(86, 156, 214, 0.1); border-radius: 4px; font-size: 0.7rem; font-style: italic;">
                         "${escapeHtml(evaluation.exemple_ameliore)}"
                     </div>

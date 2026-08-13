@@ -178,20 +178,20 @@
 <body>
   <nav class="app-nav">
     <a href="/" title="Accueil"><img src="assets/logo.png" class="nav-logo" alt="Mockly"></a>
-    <a href="workspace.html">📄 Coach</a>
-    <a href="/interview" class="active">🎙️ Interview</a>
-    <a href="/profile">📈 Ma progression</a>
-    <a href="/results">📊 Historique</a>
-    <a href="/configuration">⚙️ Configuration</a>
+    <a href="workspace.html"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#file-text"></use></svg> Coach</a>
+    <a href="/interview" class="active"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#mic"></use></svg> Interview</a>
+    <a href="/profile"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#trending-up"></use></svg> Ma progression</a>
+    <a href="/results"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#bar-chart"></use></svg> Historique</a>
+    <a href="/configuration"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#settings"></use></svg> Configuration</a>
     <div class="nav-right">
-      <a href="/admin" class="admin-nav-link hidden">🛡️ Admin</a>
-      <a href="auth.html" onclick="event.preventDefault(); window.MocklyAuth.signOut()">↪ Déconnexion</a>
+      <a href="/admin" class="admin-nav-link hidden"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#shield"></use></svg> Admin</a>
+      <a href="auth.html" onclick="event.preventDefault(); window.MocklyAuth.signOut()"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#log-out"></use></svg> Déconnexion</a>
     </div>
   </nav>
 
   <div class="interview-layout">
     <div class="interview-header">
-      <h1>🎙️ Entretien audio</h1>
+      <h1><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#mic"></use></svg> Entretien audio</h1>
       <p>Colle une fiche de poste : Mockly génère des questions ciblées sur les compétences clés du poste et mène l'entretien à l'oral. Le retour détaillé, avec un score, arrive à la fin, à l'écrit.</p>
     </div>
 
@@ -199,8 +199,8 @@
       <label for="jobDescriptionInput">Fiche de poste</label>
       <textarea id="jobDescriptionInput" placeholder="Colle ici l'intitulé et la description du poste..."></textarea>
       <div class="job-form-actions">
-        <button id="readinessCheckBtn" type="button" class="secondary-btn">🔍 Estimer ma préparation</button>
-        <button id="startInterviewBtn" type="submit" class="primary-btn">🎙️ Démarrer l'entretien</button>
+        <button id="readinessCheckBtn" type="button" class="secondary-btn"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#search"></use></svg> Estimer ma préparation</button>
+        <button id="startInterviewBtn" type="submit" class="primary-btn"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#mic"></use></svg> Démarrer l'entretien</button>
       </div>
       <div id="readinessResult" class="readiness-result hidden"></div>
       <p id="jobFormError" class="interview-error"></p>
@@ -216,7 +216,7 @@
       <div id="interviewThread" class="interview-thread"></div>
 
       <div class="recorder-panel">
-        <button id="micBtn" class="mic-btn" type="button" title="Enregistrer ma réponse">🎤</button>
+        <button id="micBtn" class="mic-btn" type="button" title="Enregistrer ma réponse"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#mic"></use></svg></button>
         <div id="recorderHint" class="recorder-hint">Clique pour répondre à l'oral</div>
       </div>
     </div>
@@ -229,7 +229,7 @@
         </div>
 
         <div class="report-section">
-          <h3>✅ Points forts</h3>
+          <h3><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#check"></use></svg> Points forts</h3>
           <ul class="report-list" id="reportPointsForts"></ul>
         </div>
         <div class="report-section">
@@ -237,19 +237,20 @@
           <ul class="report-list" id="reportAmeliorations"></ul>
         </div>
         <div class="report-section">
-          <h3>💡 Conseil</h3>
+          <h3><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#lightbulb"></use></svg> Conseil</h3>
           <p class="report-resume" id="reportConseil"></p>
         </div>
         <div class="report-section">
-          <h3>📊 Détail par compétence</h3>
+          <h3><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#bar-chart"></use></svg> Détail par compétence</h3>
           <div id="reportCompetencies"></div>
         </div>
 
-        <button id="restartInterviewBtn" class="secondary-btn full-width" type="button">🔁 Nouvel entretien</button>
+        <button id="restartInterviewBtn" class="secondary-btn full-width" type="button"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#repeat"></use></svg> Nouvel entretien</button>
       </div>
     </div>
   </div>
 
+  <script src="icons.js"></script>
   <script src="interview.js"></script>
   <script src="nav-admin.js"></script>
 </body>

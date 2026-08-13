@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mockly — Préparation aux entretiens IA</title>
-    <meta name="description" content="Mockly est une plateforme de préparation aux entretiens d’embauche, pensée pour les career centers et les étudiants.">
+    <meta name="description" content="Mockly est une plateforme de préparation aux entretiens d'embauche, pensée pour les career centers et les étudiants.">
     <link rel="icon" type="image/png" href="assets/favicon.png">
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -15,10 +15,10 @@
         <header class="topbar">
             <a href="#" class="brand"><img src="assets/logo.png" class="brand-logo" alt="">Mockly</a>
             <nav class="topnav">
-                <a href="#benefits">Produit</a>
+                <a href="#secteurs">Secteurs</a>
+                <a href="#comment-ca-marche">Produit</a>
+                <a href="#career-center">Career center</a>
                 <a href="features.html">Fonctionnalités</a>
-                <a href="#audience">Clients</a>
-                <a href="#contact">Contact</a>
             </nav>
             <a href="workspace.html" class="primary-btn small-btn">Accéder au workspace</a>
         </header>
@@ -31,88 +31,171 @@
             </div>
 
             <div class="hero-content">
-                <p class="eyebrow">Mockly • IA pour l’employabilité</p>
-                <h1>Donner à chaque étudiant la <span class="gradient-text">confiance</span> d’un entretien réussi.</h1>
+                <p class="eyebrow">Mockly • IA pour l'employabilité</p>
+                <h1>Donner à chaque étudiant la <span class="gradient-text">confiance</span> d'un entretien réussi.</h1>
                 <p class="hero-text">
-                    Mockly aide les écoles et les career centers à préparer leurs étudiants à l’emploi grâce à un simulateur d’entretien personnalisé, intelligent et rapide à mettre en place.
+                    Pilotez de bout en bout l'insertion professionnelle de vos étudiants. Formez-les, accompagnez-les et donnez-leur les moyens d'atteindre leurs objectifs de carrière.
                 </p>
                 <div class="hero-actions">
-                    <a href="auth.html" class="primary-btn">Créer mon compte</a>
-                    <a href="features.html" class="secondary-btn">Voir les fonctionnalités</a>
+                    <a href="#demo" class="primary-btn">Demander une démonstration</a>
+                    <a href="#comment-ca-marche" class="secondary-btn">Voir comment ça marche</a>
                 </div>
                 <div class="trust-strip">
-                    <span class="trust-badge">🐼 Coach IA personnalisé</span>
-                    <span class="trust-badge">🎙️ Entretiens audio réalistes</span>
-                    <span class="trust-badge">📈 Suivi de progression</span>
+                    <span class="trust-badge"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#bot"></use></svg> Coach IA personnalisé</span>
+                    <span class="trust-badge"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#mic"></use></svg> Entretiens audio réalistes</span>
+                    <span class="trust-badge"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#trending-up"></use></svg> Suivi de progression</span>
                 </div>
             </div>
 
             <div class="hero-side">
                 <div class="hero-panel">
-                    <h3>Pourquoi les clients adoptent Mockly</h3>
+                    <h3>Pourquoi les écoles adoptent Mockly</h3>
                     <ul>
-                        <li>Préparation personnalisée à partir du CV et de l’offre</li>
+                        <li>Préparation personnalisée à partir du CV et de l'offre</li>
                         <li>Feedback actionnable, rapide et réaliste</li>
-                        <li>Vue claire sur la progression des étudiants</li>
+                        <li>Vue claire sur la progression de toute la promo</li>
                     </ul>
                 </div>
             </div>
         </section>
 
         <main class="landing-content">
-            <section class="section-card" id="benefits">
-                <h2>Ce que propose Mockly</h2>
-                <div class="feature-grid">
-                    <article class="feature-card">
-                        <div class="feature-icon">🎯</div>
-                        <h3>Un simulateur d’entretien sur mesure</h3>
-                        <p>Chaque session est construite à partir du profil étudiant et de la mission visée, pour des questions plus pertinentes et plus utiles.</p>
-                    </article>
-                    <article class="feature-card">
-                        <div class="feature-icon">⏱️</div>
-                        <h3>Un gain de temps pour les career centers</h3>
-                        <p>Les équipes peuvent scaler la préparation sans multiplier les sessions 1:1, tout en gardant un suivi qualité des étudiants.</p>
-                    </article>
-                    <article class="feature-card">
-                        <div class="feature-icon">📊</div>
-                        <h3>Des résultats visibles</h3>
-                        <p>Scores, progression, feedbacks et historique permettent de montrer concrètement l’impact de la préparation.</p>
-                    </article>
+            <section class="section-block reveal" id="secteurs">
+                <div class="section-heading">
+                    <p class="eyebrow">Pour tous les secteurs</p>
+                    <h2>Une préparation qui s'adapte à chaque filière</h2>
+                    <p>Quel que soit le profil de vos étudiants, Mockly génère des entretiens et des questions pertinentes pour leur secteur.</p>
                 </div>
-                <p style="margin-top: 1.1rem;">
-                    <a href="features.html" class="secondary-btn small-btn">Découvrir toutes les fonctionnalités étudiant →</a>
-                </p>
+
+                <div class="sector-band">
+                    <div class="sector-card" style="--sector-tint: rgba(86, 156, 214, 0.18);">
+                        <div class="sector-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#settings"></use></svg></div>
+                        <span>Ingénieur</span>
+                    </div>
+                    <div class="sector-card" style="--sector-tint: rgba(206, 145, 120, 0.18);">
+                        <div class="sector-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#briefcase"></use></svg></div>
+                        <span>Commerce</span>
+                    </div>
+                    <div class="sector-card" style="--sector-tint: rgba(197, 134, 192, 0.18);">
+                        <div class="sector-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#message-circle"></use></svg></div>
+                        <span>Communication</span>
+                    </div>
+                    <div class="sector-card" style="--sector-tint: rgba(78, 201, 176, 0.18);">
+                        <div class="sector-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#monitor"></use></svg></div>
+                        <span>Informatique</span>
+                    </div>
+                    <div class="sector-card" style="--sector-tint: rgba(106, 153, 85, 0.18);">
+                        <div class="sector-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#bar-chart"></use></svg></div>
+                        <span>Finance</span>
+                    </div>
+                    <div class="sector-card" style="--sector-tint: rgba(220, 220, 170, 0.18);">
+                        <div class="sector-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#building"></use></svg></div>
+                        <span>Université</span>
+                    </div>
+                    <div class="sector-card" style="--sector-tint: rgba(106, 153, 85, 0.18);">
+                        <div class="sector-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#sprout"></use></svg></div>
+                        <span>Agro</span>
+                    </div>
+                    <div class="sector-card" style="--sector-tint: rgba(86, 156, 214, 0.12);">
+                        <div class="sector-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#compass"></use></svg></div>
+                        <span>Et bien d'autres</span>
+                    </div>
+                </div>
+
+                <div class="sector-cta">
+                    <a href="#demo" class="primary-btn">Demander une démonstration</a>
+                    <a href="#demo" class="secondary-btn">Prendre un rendez-vous</a>
+                </div>
             </section>
 
-            <section class="section-card two-columns" id="audience">
-                <div>
-                    <h2>À qui s’adresse l’outil</h2>
-                    <ul class="check-list">
-                        <li><strong>Career centers</strong> : pour industrialiser la préparation aux entretiens et piloter la progression des promos.</li>
-                        <li><strong>Étudiants</strong> : pour s’entraîner à volonté, recevoir des retours utiles et gagner en confiance avant les entretiens réels.</li>
-                    </ul>
+            <section class="section-card section-block reveal" id="comment-ca-marche">
+                <div class="section-heading">
+                    <p class="eyebrow">Le produit</p>
+                    <h2>Comment ça marche ?</h2>
                 </div>
-                <div>
-                    <h2>Comment ça fonctionne</h2>
-                    <ol class="number-list">
-                        <li>Un étudiant dépose son CV et une offre.</li>
-                        <li>L’outil analyse le profil et génère des questions pertinentes.</li>
-                        <li>Le candidat répond, puis reçoit un feedback structuré et un score.</li>
-                    </ol>
+
+                <p>Un étudiant dépose son CV et colle une offre ou une fiche de poste. L'IA analyse le profil, identifie les compétences clés attendues sur ce poste précis, et mène un entretien 100&nbsp;% oral&nbsp;: les questions sont posées à voix haute, l'étudiant répond au micro, la question suivante s'enchaîne sans temps mort. À la fin, il reçoit un rapport écrit — score global, points forts, axes d'amélioration, détail par compétence — sans qu'aucun membre de votre équipe n'ait eu à s'asseoir en face de lui.</p>
+                <p>Chaque interaction (CV, entretien audio, échange avec le coach IA) alimente automatiquement un arbre de compétences par étudiant, avec un score réel sur chaque compétence testée. Pas de déclaratif&nbsp;: soit une compétence a été évaluée, soit elle est simplement mentionnée sur un CV et affichée comme « non testée ».</p>
+
+                <div class="flow-steps">
+                    <div class="flow-step">
+                        <div class="flow-step-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#file-text"></use></svg></div>
+                        <h4>1. Dépôt</h4>
+                        <p>CV et fiche de poste déposés par l'étudiant.</p>
+                    </div>
+                    <div class="flow-step">
+                        <div class="flow-step-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#target"></use></svg></div>
+                        <h4>2. Analyse</h4>
+                        <p>L'IA identifie les compétences clés du poste.</p>
+                    </div>
+                    <div class="flow-step">
+                        <div class="flow-step-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#mic"></use></svg></div>
+                        <h4>3. Entretien</h4>
+                        <p>Questions posées à voix haute, réponses au micro.</p>
+                    </div>
+                    <div class="flow-step">
+                        <div class="flow-step-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#bar-chart"></use></svg></div>
+                        <h4>4. Rapport</h4>
+                        <p>Score, points forts et axes d'amélioration.</p>
+                    </div>
                 </div>
             </section>
 
-            <section class="section-card quote-card">
-                <p>“Mockly transforme la préparation aux entretiens en une expérience simple, scalable et orientée résultats.”</p>
+            <section class="section-card section-block reveal" id="career-center">
+                <div class="section-heading">
+                    <p class="eyebrow">Career center</p>
+                    <h2>Ce que ça change pour votre équipe</h2>
+                    <p>C'est là que la plupart des outils de simulation s'arrêtent — pas Mockly.</p>
+                </div>
+
+                <p>Le tableau de bord école donne à l'établissement, sur l'ensemble de la promo&nbsp;:</p>
+
+                <ul class="icon-list">
+                    <li>
+                        <span class="icon-bullet"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#check"></use></svg></span>
+                        <span>Les KPIs du pool (nombre de sessions, score moyen, taux d'usage).</span>
+                    </li>
+                    <li>
+                        <span class="icon-bullet"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#check"></use></svg></span>
+                        <span>Les compétences les moins bien notées sur l'ensemble des étudiants réellement évalués — c'est-à-dire où concentrer un atelier collectif plutôt que deviner.</span>
+                    </li>
+                    <li>
+                        <span class="icon-bullet"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#check"></use></svg></span>
+                        <span>Le détail par étudiant (sessions, entretiens, score moyen) pour repérer qui n'a pas encore touché l'outil à trois semaines des entretiens réels.</span>
+                    </li>
+                    <li>
+                        <span class="icon-bullet"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#check"></use></svg></span>
+                        <span>La gestion du quota de tokens IA, élève par élève ou en masse sur toute la promo.</span>
+                    </li>
+                </ul>
+
+                <p>Autrement dit&nbsp;: au lieu d'espérer que la préparation se passe bien, l'équipe pilote la préparation avec des chiffres.</p>
+            </section>
+
+            <section class="section-card quote-card section-block reveal">
+                <div class="section-heading" style="margin-bottom: 0.8rem;">
+                    <p class="eyebrow">Le résultat</p>
+                </div>
+                <p style="font-style: normal; color: var(--vscode-text);">Vos étudiants s'entraînent autant de fois que nécessaire, sans que ça coûte une minute de plus à votre équipe. Votre équipe, elle, passe du temps qualitatif là où les données montrent que c'est nécessaire — pas en répétant les mêmes entretiens blancs génériques à 400 personnes.</p>
+            </section>
+
+            <section class="final-cta-section reveal" id="demo">
+                <h2>Vous voulez voir le tableau de bord école sur vos propres données de promo&nbsp;?</h2>
+                <a href="mailto:julesleroy44500@gmail.com?subject=Demande%20de%20d%C3%A9mo%20Mockly" class="primary-btn large-btn">
+                    Réserver une démo
+                    <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#arrow-right"></use></svg>
+                </a>
+                <!-- TODO: remplacer le lien mailto ci-dessus par l'embed/lien Calendly une fois configuré. -->
             </section>
         </main>
 
         <footer class="footer-bar" id="contact">
             <div>© 2026 Mockly</div>
             <div class="footer-links">
-                <a href="#benefits">Produit</a>
+                <a href="#secteurs">Secteurs</a>
+                <a href="#comment-ca-marche">Produit</a>
+                <a href="#career-center">Career center</a>
                 <a href="features.html">Fonctionnalités</a>
-                <a href="#audience">Clients</a>
                 <a href="auth.html">Workspace</a>
                 <a href="cgu.html">CGU</a>
                 <a href="cgv.html">CGV</a>
@@ -122,6 +205,24 @@
         </footer>
     </div>
 
+    <script>
+        // Révélation au scroll des sections .reveal (voir styles.css) — pas de
+        // dépendance externe, juste un IntersectionObserver minimal.
+        const revealEls = document.querySelectorAll('.reveal');
+        if ('IntersectionObserver' in window && revealEls.length) {
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach((entry) => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('is-visible');
+                        observer.unobserve(entry.target);
+                    }
+                });
+            }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+            revealEls.forEach((el) => observer.observe(el));
+        } else {
+            revealEls.forEach((el) => el.classList.add('is-visible'));
+        }
+    </script>
 </body>
 
 </html>

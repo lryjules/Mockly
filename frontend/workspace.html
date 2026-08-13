@@ -15,14 +15,14 @@
 <body>
     <nav class="app-nav">
         <a href="/" title="Accueil"><img src="assets/logo.png" class="nav-logo" alt="Mockly"></a>
-        <a href="workspace.html" class="active">📄 Coach</a>
-        <a href="/interview">🎙️ Interview</a>
-        <a href="/profile">📈 Ma progression</a>
-        <a href="/results">📊 Historique</a>
-        <a href="/configuration">⚙️ Configuration</a>
+        <a href="workspace.html" class="active"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#file-text"></use></svg> Coach</a>
+        <a href="/interview"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#mic"></use></svg> Interview</a>
+        <a href="/profile"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#trending-up"></use></svg> Ma progression</a>
+        <a href="/results"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#bar-chart"></use></svg> Historique</a>
+        <a href="/configuration"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#settings"></use></svg> Configuration</a>
         <div class="nav-right">
-            <a href="/admin" class="admin-nav-link hidden">🛡️ Admin</a>
-            <a href="auth.html" onclick="event.preventDefault(); window.MocklyAuth.signOut()">↪ Déconnexion</a>
+            <a href="/admin" class="admin-nav-link hidden"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#shield"></use></svg> Admin</a>
+            <a href="auth.html" onclick="event.preventDefault(); window.MocklyAuth.signOut()"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#log-out"></use></svg> Déconnexion</a>
         </div>
     </nav>
     <div id="app" class="app">
@@ -30,14 +30,14 @@
         <div class="sidebar">
             <div class="sidebar-header">
                 <div class="sidebar-title"><img src="assets/logo.png" class="sidebar-logo" alt="">Mockly</div>
-                <button id="clearWorkspaceBtn" class="clear-workspace-btn" title="Vider l'espace de travail">🗑️ Vider</button>
+                <button id="clearWorkspaceBtn" class="clear-workspace-btn" title="Vider l'espace de travail"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#trash"></use></svg> Vider</button>
             </div>
 
             <!-- Upload Section -->
             <div class="sidebar-section" id="uploadSection">
                 <div class="section-title">1. Déposer votre CV</div>
                 <div class="upload-zone" id="uploadZone">
-                    <div class="upload-icon">📄</div>
+                    <div class="upload-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#file-text"></use></svg></div>
                     <div class="upload-text">Glissez votre CV ici</div>
                     <div class="upload-hint">PDF ou DOCX</div>
                 </div>
@@ -67,7 +67,7 @@
                         <input type="text" id="roleInput" placeholder="Ex: Développeur">
                     </label>
                     <button id="generateBtn" class="generate-btn">
-                        ✨ Générer la carte mentale
+                        <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#sparkle"></use></svg> Générer la carte mentale
                     </button>
                 </div>
             </div>
@@ -104,14 +104,14 @@
                 <div class="zoom-indicator">100%</div>
                 <button class="control-btn" id="zoomInBtn" title="Zoom avant (ou molette)">+</button>
                 <button class="control-btn" id="zoomOutBtn" title="Zoom arrière (ou molette)">−</button>
-                <button class="control-btn" id="resetViewBtn" title="Réinitialiser la vue">🎯</button>
+                <button class="control-btn" id="resetViewBtn" title="Réinitialiser la vue"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#target"></use></svg></button>
                 <button class="control-btn" id="fitViewBtn" title="Ajuster à la vue">⊡</button>
-                <button class="control-btn" id="openChatBtn" title="Ouvrir le Coach IA">💬</button>
+                <button class="control-btn" id="openChatBtn" title="Ouvrir le Coach IA"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#message-circle"></use></svg></button>
             </div>
 
             <!-- Navigation hint : seulement utile une fois qu'il y a quelque chose à naviguer -->
             <div class="navigation-hint hidden" id="navigationHint">
-                💡 <strong>Navigation:</strong> Molette = Zoom | Clic + Glisser = Déplacer | Clic sur nuage = Déplacer
+                <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#lightbulb"></use></svg> <strong>Navigation:</strong> Molette = Zoom | Clic + Glisser = Déplacer | Clic sur nuage = Déplacer
                 nuage
             </div>
 
@@ -124,7 +124,7 @@
         <!-- Chat Panel -->
         <div class="chat-panel" id="chatPanel">
             <div class="chat-header">
-                <div class="chat-title">💬 Coach IA</div>
+                <div class="chat-title"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#message-circle"></use></svg> Coach IA</div>
                 <button class="chat-close" id="chatClose">×</button>
             </div>
             <div class="chat-messages" id="chatMessages">
@@ -141,6 +141,7 @@
     </div>
 
     <script src="mockly-loader.js"></script>
+    <script src="icons.js"></script>
     <script src="script.js"></script>
     <script src="nav-admin.js"></script>
 </body>

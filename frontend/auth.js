@@ -307,7 +307,7 @@ function renderOnboardingStep() {
     const bubble = document.createElement('div');
     bubble.className = 'message assistant typing';
     bubble.innerHTML = `
-        <div class="avatar assistant-avatar">🐼</div>
+        <div class="avatar assistant-avatar">${mIcon('bot')}</div>
         <div class="bubble assistant-bubble">
             <strong>Mockly</strong>
             <p>${escHtml(step.question)}</p>
@@ -375,7 +375,7 @@ async function submitOnboardingProfile() {
         const successBubble = document.createElement('div');
         successBubble.className = 'message assistant';
         successBubble.innerHTML = `
-            <div class="avatar assistant-avatar">🐼</div>
+            <div class="avatar assistant-avatar">${mIcon('bot')}</div>
             <div class="bubble assistant-bubble">
                 <strong>Mockly</strong>
                 <p>Parfait, ton profil est prêt. Tu peux maintenant accéder au workspace.</p>

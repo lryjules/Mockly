@@ -1,10 +1,10 @@
 const API_BASE_URL = '/api';
 
 const CATEGORY_LABELS = {
-    technique: '💻 Technique',
-    métier: '🧭 Métier',
-    soft_skill: '🤝 Soft skills',
-    autre: '✨ Autre',
+    technique: `${mIcon('monitor')} Technique`,
+    métier: `${mIcon('compass')} Métier`,
+    soft_skill: `${mIcon('handshake')} Soft skills`,
+    autre: `${mIcon('sparkle')} Autre`,
 };
 
 const CATEGORY_ORDER = ['technique', 'métier', 'soft_skill', 'autre'];
@@ -26,7 +26,7 @@ function renderCompetencyRow(comp) {
     // (technique/métier) et seulement si l'échantillon est assez grand côté
     // backend (profile_engine.MIN_STUDENTS_FOR_RANKING) — jamais de nom d'élève.
     const rankBadge = comp.school_rank
-        ? `<span class="competency-rank-badge" title="Ton rang parmi les élèves de ton école évalués sur cette compétence">🏆 #${comp.school_rank}/${comp.school_rank_total} de l'école</span>`
+        ? `<span class="competency-rank-badge" title="Ton rang parmi les élèves de ton école évalués sur cette compétence">${mIcon('award')} #${comp.school_rank}/${comp.school_rank_total} de l'école</span>`
         : '';
 
     return `
@@ -77,7 +77,7 @@ async function loadProfile() {
         renderTree(tree);
     } catch (error) {
         document.getElementById('profileTree').innerHTML = `
-            <div class="profile-empty">⚠️ Erreur de connexion. Vérifie que le serveur est lancé.</div>`;
+            <div class="profile-empty">${mIcon('alert-triangle')} Erreur de connexion. Vérifie que le serveur est lancé.</div>`;
     }
 }
 

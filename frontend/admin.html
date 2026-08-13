@@ -297,24 +297,24 @@
 <body>
   <nav class="app-nav">
     <a href="/" title="Accueil"><img src="assets/logo.png" class="nav-logo" alt="Mockly"></a>
-    <a href="workspace.html">📄 Coach</a>
-    <a href="/interview">🎙️ Interview</a>
-    <a href="/profile">📈 Ma progression</a>
-    <a href="/results">📊 Historique</a>
-    <a href="/configuration">⚙️ Configuration</a>
+    <a href="workspace.html"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#file-text"></use></svg> Coach</a>
+    <a href="/interview"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#mic"></use></svg> Interview</a>
+    <a href="/profile"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#trending-up"></use></svg> Ma progression</a>
+    <a href="/results"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#bar-chart"></use></svg> Historique</a>
+    <a href="/configuration"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#settings"></use></svg> Configuration</a>
     <div class="nav-right">
-      <a href="/admin" class="admin-nav-link active hidden">🛡️ Admin</a>
-      <a href="auth.html" onclick="event.preventDefault(); window.MocklyAuth.signOut()">↪ Déconnexion</a>
+      <a href="/admin" class="admin-nav-link active hidden"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#shield"></use></svg> Admin</a>
+      <a href="auth.html" onclick="event.preventDefault(); window.MocklyAuth.signOut()"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#log-out"></use></svg> Déconnexion</a>
     </div>
   </nav>
 
   <div class="admin-layout">
     <div class="admin-header">
       <div>
-        <h1>🛡️ Admin Dashboard</h1>
+        <h1><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#shield"></use></svg> Admin Dashboard</h1>
         <p>Indicateurs calculés à partir des données réelles de l'app (comptes, sessions, entretiens, journal d'appels IA). Les métriques Business et de satisfaction sont saisies manuellement ci-dessous — aucune donnée d'usage ne permet de les déduire.</p>
       </div>
-      <button id="refreshBtn" class="secondary-btn admin-refresh-btn" type="button">↻ Rafraîchir</button>
+      <button id="refreshBtn" class="secondary-btn admin-refresh-btn" type="button"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#refresh-cw"></use></svg> Rafraîchir</button>
     </div>
 
     <div id="adminLocked" class="admin-locked hidden">
@@ -323,30 +323,30 @@
 
     <div id="adminContent" class="hidden">
       <section class="kpi-section">
-        <div class="kpi-section-title">📊 Product Metrics</div>
+        <div class="kpi-section-title"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#bar-chart"></use></svg> Product Metrics</div>
         <div class="kpi-section-subtitle" id="productSubtitle"></div>
         <div class="kpi-grid" id="productGrid"></div>
       </section>
 
       <section class="kpi-section">
-        <div class="kpi-section-title">🤖 AI Metrics</div>
+        <div class="kpi-section-title"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#bot"></use></svg> AI Metrics</div>
         <div class="kpi-grid" id="aiGrid"></div>
         <div id="modelDistribution" style="margin-top:0.9rem"></div>
       </section>
 
       <section class="kpi-section">
-        <div class="kpi-section-title">💼 Business Metrics</div>
+        <div class="kpi-section-title"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#briefcase"></use></svg> Business Metrics</div>
         <div class="kpi-section-subtitle">Saisies manuelles — laisser un champ vide l'efface.</div>
         <form id="businessForm" class="business-form"></form>
       </section>
 
       <section class="kpi-section">
-        <div class="kpi-section-title">🌱 Pilot Success Metrics</div>
+        <div class="kpi-section-title"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#sprout"></use></svg> Pilot Success Metrics</div>
         <div class="kpi-grid" id="pilotGrid"></div>
       </section>
 
       <section class="kpi-section">
-        <div class="kpi-section-title">🏫 Écoles</div>
+        <div class="kpi-section-title"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#building"></use></svg> Écoles</div>
         <div class="kpi-section-subtitle">Crée un profil école : un pool d'élèves + un email désigné comme compte de gestion (il obtient le rôle "profil école" dès sa première connexion Clerk, qu'il ait déjà un compte ou non).</div>
         <form id="schoolCreateForm" class="school-create-form">
           <label>Nom de l'école
@@ -380,7 +380,7 @@
   <div id="usersModalBackdrop" class="users-modal-backdrop hidden">
     <div class="users-modal">
       <div class="users-modal-header">
-        <h2>👥 Comptes enregistrés</h2>
+        <h2><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#users"></use></svg> Comptes enregistrés</h2>
         <button id="closeUsersModal" class="modal-close-btn" type="button">×</button>
       </div>
       <div class="users-modal-body">
@@ -402,6 +402,7 @@
     </div>
   </div>
 
+  <script src="icons.js"></script>
   <script src="admin.js"></script>
   <script src="nav-admin.js"></script>
 </body>

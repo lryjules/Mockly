@@ -32,10 +32,10 @@ function addAssistantMessage(question, audioBase64) {
     const message = document.createElement('div');
     message.className = 'interview-message assistant';
     message.innerHTML = `
-        <div class="interview-avatar">🐼</div>
+        <div class="interview-avatar">${mIcon('bot')}</div>
         <div>
             <div class="interview-bubble">${escHtml(question)}</div>
-            <button class="replay-btn" type="button">🔊 Réécouter</button>
+            <button class="replay-btn" type="button">${mIcon('volume')} Réécouter</button>
         </div>
     `;
     message.querySelector('.replay-btn').addEventListener('click', () => playQuestionAudio(audioBase64));
@@ -103,7 +103,7 @@ async function startInterview(event) {
         errorBox.textContent = error.message;
     } finally {
         btn.disabled = false;
-        btn.textContent = "🎙️ Démarrer l'entretien";
+        btn.innerHTML = `${mIcon('mic')} Démarrer l'entretien`;
     }
 }
 
@@ -126,7 +126,7 @@ async function startRecording() {
         recorder.start();
         state.isRecording = true;
         el('micBtn').classList.add('recording');
-        el('micBtn').textContent = '⏹️';
+        el('micBtn').innerHTML = mIcon('square');
         el('recorderHint').textContent = 'Enregistrement en cours... clique pour arrêter';
     } catch (error) {
         el('recorderHint').textContent = "Micro indisponible : autorise l'accès au microphone pour répondre.";
@@ -144,7 +144,7 @@ async function submitAnswer(audioBlob) {
     const micBtn = el('micBtn');
     micBtn.classList.remove('recording');
     micBtn.disabled = true;
-    micBtn.textContent = '⏳';
+    micBtn.innerHTML = mIcon('loader', 'icon-spin');
     el('recorderHint').textContent = 'Transcription de ta réponse...';
 
     try {
@@ -176,12 +176,12 @@ async function submitAnswer(audioBlob) {
         addAssistantMessage(data.question, data.audio_base64);
 
         micBtn.disabled = false;
-        micBtn.textContent = '🎤';
+        micBtn.innerHTML = mIcon('mic');
         el('recorderHint').textContent = 'Clique pour répondre à l\'oral';
     } catch (error) {
         el('recorderHint').textContent = error.message;
         micBtn.disabled = false;
-        micBtn.textContent = '🎤';
+        micBtn.innerHTML = mIcon('mic');
     }
 }
 
@@ -277,7 +277,7 @@ async function checkReadiness() {
         errorBox.textContent = error.message;
     } finally {
         btn.disabled = false;
-        btn.textContent = '🔍 Estimer ma préparation';
+        btn.innerHTML = `${mIcon('search')} Estimer ma préparation`;
     }
 }
 

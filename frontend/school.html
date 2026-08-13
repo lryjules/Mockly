@@ -155,19 +155,19 @@
 <body>
   <nav class="app-nav">
     <img src="assets/logo.png" class="nav-logo" alt="Mockly">
-    <a href="/school" class="active">🏫 Tableau de bord école</a>
+    <a href="/school" class="active"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#building"></use></svg> Tableau de bord école</a>
     <div class="nav-right">
-      <a href="auth.html" onclick="event.preventDefault(); window.MocklyAuth.signOut()">↪ Déconnexion</a>
+      <a href="auth.html" onclick="event.preventDefault(); window.MocklyAuth.signOut()"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#log-out"></use></svg> Déconnexion</a>
     </div>
   </nav>
 
   <div class="school-layout">
     <div class="school-header">
       <div>
-        <h1>🏫 Tableau de bord école</h1>
+        <h1><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#building"></use></svg> Tableau de bord école</h1>
         <p id="schoolName">Chargement...</p>
       </div>
-      <button id="refreshBtn" class="secondary-btn school-refresh-btn" type="button">↻ Rafraîchir</button>
+      <button id="refreshBtn" class="secondary-btn school-refresh-btn" type="button"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#refresh-cw"></use></svg> Rafraîchir</button>
     </div>
 
     <div id="schoolLocked" class="school-locked hidden">
@@ -176,13 +176,13 @@
 
     <div id="schoolContent" class="hidden">
       <section class="kpi-section">
-        <div class="kpi-section-title">📊 KPIs du pool</div>
+        <div class="kpi-section-title"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#bar-chart"></use></svg> KPIs du pool</div>
         <div class="kpi-section-subtitle" id="kpiSubtitle"></div>
         <div class="kpi-grid" id="kpiGrid"></div>
       </section>
 
       <section class="kpi-section">
-        <div class="kpi-section-title">📉 Compétences les moins bien notées</div>
+        <div class="kpi-section-title"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#trending-down"></use></svg> Compétences les moins bien notées</div>
         <div class="kpi-section-subtitle">Uniquement les compétences réellement évaluées (au moins une fois) sur l'ensemble du pool.</div>
         <table class="weakest-table">
           <thead>
@@ -197,7 +197,7 @@
       </section>
 
       <section class="kpi-section">
-        <div class="kpi-section-title">🎟️ Bonus de tokens quotidien</div>
+        <div class="kpi-section-title"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#zap"></use></svg> Bonus de tokens quotidien</div>
         <div class="kpi-section-subtitle">Ajoute (ou retire, avec un nombre négatif) du bonus quotidien de tokens à tous les élèves de l'école d'un coup — dans la limite du pool bonus mensuel de l'école.</div>
         <form id="bulkCreditForm" class="bulk-credit-form">
           <label>Bonus quotidien (delta, tokens)
@@ -209,7 +209,7 @@
       </section>
 
       <section class="kpi-section">
-        <div class="kpi-section-title">👥 Élèves</div>
+        <div class="kpi-section-title"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#users"></use></svg> Élèves</div>
         <table class="students-table">
           <thead>
             <tr>
@@ -228,6 +228,7 @@
     </div>
   </div>
 
+  <script src="icons.js"></script>
   <script src="school.js"></script>
 </body>
 </html>

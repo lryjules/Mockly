@@ -163,7 +163,7 @@ async function saveBusinessMetrics(event) {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Erreur');
 
-        status.textContent = 'Enregistré ✅';
+        status.innerHTML = `Enregistré ${mIcon('check-circle')}`;
         renderBusinessForm(data.business);
         el('businessForm').addEventListener('submit', saveBusinessMetrics);
         // Le reste du dashboard dépend aussi de business (ex: satisfaction, coûts) : on recharge tout.
@@ -186,7 +186,7 @@ async function loadKpis(opts = {}) {
 
     if (!opts.silent) {
         el('refreshBtn').disabled = true;
-        el('refreshBtn').textContent = '↻ Chargement...';
+        el('refreshBtn').innerHTML = `${mIcon('refresh-cw', 'icon-spin')} Chargement...`;
     }
 
     try {
@@ -200,10 +200,10 @@ async function loadKpis(opts = {}) {
         renderBusinessForm(data.business);
         el('businessForm').addEventListener('submit', saveBusinessMetrics);
     } catch (error) {
-        el('adminContent').innerHTML = `<div class="admin-locked">⚠️ ${escHtml(error.message)}</div>`;
+        el('adminContent').innerHTML = `<div class="admin-locked">${mIcon('alert-triangle')} ${escHtml(error.message)}</div>`;
     } finally {
         el('refreshBtn').disabled = false;
-        el('refreshBtn').textContent = '↻ Rafraîchir';
+        el('refreshBtn').innerHTML = `${mIcon('refresh-cw')} Rafraîchir`;
     }
 }
 
@@ -211,7 +211,7 @@ function renderTokenBonusEditor(userId, bonus) {
     return `
         <div class="token-bonus-editor" data-user="${userId}">
             <input type="number" class="token-bonus-input" min="0" step="1000" value="${bonus}">
-            <button type="button" class="token-bonus-save">✓</button>
+            <button type="button" class="token-bonus-save">${mIcon('check')}</button>
         </div>
     `;
 }
@@ -269,7 +269,7 @@ async function openUsersModal() {
         if (!response.ok) throw new Error(users.error || 'Erreur');
         renderUsersTable(users);
     } catch (error) {
-        el('usersTableBody').innerHTML = `<tr><td colspan="7">⚠️ ${escHtml(error.message)}</td></tr>`;
+        el('usersTableBody').innerHTML = `<tr><td colspan="7">${mIcon('alert-triangle')} ${escHtml(error.message)}</td></tr>`;
     }
 }
 
@@ -287,7 +287,7 @@ function renderSchoolsTable(schools) {
             <td>
                 <div class="token-bonus-editor" data-school="${s.id}">
                     <input type="number" class="token-bonus-input" min="0" step="10000" value="${s.monthly_bonus_token_pool}">
-                    <button type="button" class="token-bonus-save">✓</button>
+                    <button type="button" class="token-bonus-save">${mIcon('check')}</button>
                 </div>
                 <div class="kpi-tile-meta">${fmtNum(s.monthly_bonus_tokens_used)} utilisés ce mois</div>
             </td>
@@ -334,7 +334,7 @@ async function loadSchools() {
         if (!response.ok) throw new Error(schools.error || 'Erreur');
         renderSchoolsTable(schools);
     } catch (error) {
-        el('schoolsTableBody').innerHTML = `<tr><td colspan="5">⚠️ ${escHtml(error.message)}</td></tr>`;
+        el('schoolsTableBody').innerHTML = `<tr><td colspan="5">${mIcon('alert-triangle')} ${escHtml(error.message)}</td></tr>`;
     }
 }
 
@@ -356,9 +356,9 @@ async function createSchool(event) {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Erreur');
 
-        status.textContent = data.admin_invite?.status === 'pending'
-            ? `École créée ✅ — ${data.admin_invite.email} recevra le rôle "profil école" dès sa première connexion.`
-            : 'École créée ✅';
+        status.innerHTML = data.admin_invite?.status === 'pending'
+            ? `École créée ${mIcon('check-circle')} — ${escHtml(data.admin_invite.email)} recevra le rôle "profil école" dès sa première connexion.`
+            : `École créée ${mIcon('check-circle')}`;
         event.target.reset();
         loadSchools();
     } catch (error) {

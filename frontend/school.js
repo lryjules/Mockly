@@ -64,7 +64,7 @@ function renderTokenBonusEditor(studentId, bonus) {
     return `
         <div class="token-bonus-editor" data-student="${studentId}">
             <input type="number" class="token-bonus-input" min="0" step="1000" value="${bonus}">
-            <button type="button" class="token-bonus-save">✓</button>
+            <button type="button" class="token-bonus-save">${mIcon('check')}</button>
         </div>
     `;
 }
@@ -133,7 +133,7 @@ async function submitBulkCredits(event) {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Erreur');
 
-        status.textContent = `Appliqué à ${data.nb_students} élève(s) ✅`;
+        status.innerHTML = `Appliqué à ${data.nb_students} élève(s) ${mIcon('check-circle')}`;
         event.target.reset();
         loadDashboard({ silent: true });
     } catch (error) {
@@ -154,7 +154,7 @@ async function loadDashboard(opts = {}) {
 
     if (!opts.silent) {
         el('refreshBtn').disabled = true;
-        el('refreshBtn').textContent = '↻ Chargement...';
+        el('refreshBtn').innerHTML = `${mIcon('refresh-cw', 'icon-spin')} Chargement...`;
     }
 
     try {
@@ -167,10 +167,10 @@ async function loadDashboard(opts = {}) {
         renderWeakest(data.weakest_competencies);
         renderStudentsTable(data.students);
     } catch (error) {
-        el('schoolContent').innerHTML = `<div class="school-locked">⚠️ ${escHtml(error.message)}</div>`;
+        el('schoolContent').innerHTML = `<div class="school-locked">${mIcon('alert-triangle')} ${escHtml(error.message)}</div>`;
     } finally {
         el('refreshBtn').disabled = false;
-        el('refreshBtn').textContent = '↻ Rafraîchir';
+        el('refreshBtn').innerHTML = `${mIcon('refresh-cw')} Rafraîchir`;
     }
 }
 
