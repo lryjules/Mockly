@@ -68,37 +68,73 @@
                 </div>
 
                 <div class="sector-band">
-                    <div class="sector-card" style="--sector-tint: rgba(86, 156, 214, 0.18);">
-                        <div class="sector-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#settings"></use></svg></div>
-                        <span>Ingénieur</span>
-                    </div>
-                    <div class="sector-card" style="--sector-tint: rgba(206, 145, 120, 0.18);">
-                        <div class="sector-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#briefcase"></use></svg></div>
-                        <span>Commerce</span>
-                    </div>
-                    <div class="sector-card" style="--sector-tint: rgba(197, 134, 192, 0.18);">
-                        <div class="sector-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#message-circle"></use></svg></div>
-                        <span>Communication</span>
-                    </div>
-                    <div class="sector-card" style="--sector-tint: rgba(78, 201, 176, 0.18);">
-                        <div class="sector-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#monitor"></use></svg></div>
-                        <span>Informatique</span>
-                    </div>
-                    <div class="sector-card" style="--sector-tint: rgba(106, 153, 85, 0.18);">
-                        <div class="sector-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#bar-chart"></use></svg></div>
-                        <span>Finance</span>
-                    </div>
-                    <div class="sector-card" style="--sector-tint: rgba(220, 220, 170, 0.18);">
-                        <div class="sector-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#building"></use></svg></div>
-                        <span>Université</span>
-                    </div>
-                    <div class="sector-card" style="--sector-tint: rgba(106, 153, 85, 0.18);">
-                        <div class="sector-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#sprout"></use></svg></div>
-                        <span>Agro</span>
-                    </div>
-                    <div class="sector-card" style="--sector-tint: rgba(86, 156, 214, 0.12);">
-                        <div class="sector-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#compass"></use></svg></div>
-                        <span>Et bien d'autres</span>
+                    <div class="sector-track">
+                        <div class="sector-card" style="--sector-tint: rgba(86, 156, 214, 0.18);">
+                            <div class="sector-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#settings"></use></svg></div>
+                            <span>Ingénieur</span>
+                        </div>
+                        <div class="sector-card" style="--sector-tint: rgba(206, 145, 120, 0.18);">
+                            <div class="sector-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#briefcase"></use></svg></div>
+                            <span>Commerce</span>
+                        </div>
+                        <div class="sector-card" style="--sector-tint: rgba(197, 134, 192, 0.18);">
+                            <div class="sector-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#message-circle"></use></svg></div>
+                            <span>Communication</span>
+                        </div>
+                        <div class="sector-card" style="--sector-tint: rgba(78, 201, 176, 0.18);">
+                            <div class="sector-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#monitor"></use></svg></div>
+                            <span>Informatique</span>
+                        </div>
+                        <div class="sector-card" style="--sector-tint: rgba(106, 153, 85, 0.18);">
+                            <div class="sector-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#bar-chart"></use></svg></div>
+                            <span>Finance</span>
+                        </div>
+                        <div class="sector-card" style="--sector-tint: rgba(220, 220, 170, 0.18);">
+                            <div class="sector-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#building"></use></svg></div>
+                            <span>Université</span>
+                        </div>
+                        <div class="sector-card" style="--sector-tint: rgba(106, 153, 85, 0.18);">
+                            <div class="sector-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#sprout"></use></svg></div>
+                            <span>Agro</span>
+                        </div>
+                        <div class="sector-card" style="--sector-tint: rgba(86, 156, 214, 0.12);">
+                            <div class="sector-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#compass"></use></svg></div>
+                            <span>Et bien d'autres</span>
+                        </div>
+                        <!-- Jeu dupliqué pour la boucle de défilement automatique (voir .sector-track
+                             dans styles.css) — masqué aux lecteurs d'écran, ce sont les mêmes filières. -->
+                        <div class="sector-card" style="--sector-tint: rgba(86, 156, 214, 0.18);" aria-hidden="true">
+                            <div class="sector-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#settings"></use></svg></div>
+                            <span>Ingénieur</span>
+                        </div>
+                        <div class="sector-card" style="--sector-tint: rgba(206, 145, 120, 0.18);" aria-hidden="true">
+                            <div class="sector-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#briefcase"></use></svg></div>
+                            <span>Commerce</span>
+                        </div>
+                        <div class="sector-card" style="--sector-tint: rgba(197, 134, 192, 0.18);" aria-hidden="true">
+                            <div class="sector-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#message-circle"></use></svg></div>
+                            <span>Communication</span>
+                        </div>
+                        <div class="sector-card" style="--sector-tint: rgba(78, 201, 176, 0.18);" aria-hidden="true">
+                            <div class="sector-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#monitor"></use></svg></div>
+                            <span>Informatique</span>
+                        </div>
+                        <div class="sector-card" style="--sector-tint: rgba(106, 153, 85, 0.18);" aria-hidden="true">
+                            <div class="sector-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#bar-chart"></use></svg></div>
+                            <span>Finance</span>
+                        </div>
+                        <div class="sector-card" style="--sector-tint: rgba(220, 220, 170, 0.18);" aria-hidden="true">
+                            <div class="sector-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#building"></use></svg></div>
+                            <span>Université</span>
+                        </div>
+                        <div class="sector-card" style="--sector-tint: rgba(106, 153, 85, 0.18);" aria-hidden="true">
+                            <div class="sector-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#sprout"></use></svg></div>
+                            <span>Agro</span>
+                        </div>
+                        <div class="sector-card" style="--sector-tint: rgba(86, 156, 214, 0.12);" aria-hidden="true">
+                            <div class="sector-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#compass"></use></svg></div>
+                            <span>Et bien d'autres</span>
+                        </div>
                     </div>
                 </div>
 
@@ -130,13 +166,13 @@
                     </div>
                     <div class="flow-step">
                         <div class="flow-step-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#mic"></use></svg></div>
-                        <h4>3. Entretien</h4>
+                        <h4>3. Entretien en temps réel</h4>
                         <p>Questions posées à voix haute, réponses au micro.</p>
                     </div>
                     <div class="flow-step">
                         <div class="flow-step-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#bar-chart"></use></svg></div>
                         <h4>4. Rapport</h4>
-                        <p>Score, points forts et axes d'amélioration.</p>
+                        <p>Score et classement, points forts et axes d'amélioration.</p>
                     </div>
                 </div>
             </section>
