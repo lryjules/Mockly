@@ -121,7 +121,7 @@ def list_schools():
             FROM schools sc
             LEFT JOIN users u ON u.school_id = sc.id
             LEFT JOIN users admin_u ON admin_u.school_id = sc.id AND admin_u.is_school_admin = 1
-            LEFT JOIN school_admin_invites inv ON inv.school_id = sc.id
+            LEFT JOIN pending_org_invites inv ON inv.organization_id = sc.id AND inv.role = 'SCHOOL_ADMIN'
             GROUP BY sc.id, admin_u.id, admin_u.email, inv.email
             ORDER BY sc.name
         """).fetchall()
@@ -172,20 +172,10 @@ def create_school():
         conn.execute("INSERT INTO schools (id, name) VALUES (%s, %s)", (school_id, name))
         organizations.get_or_create_subscription(school_id, conn=conn)
 
-        existing_user = conn.execute("SELECT id FROM users WHERE email=%s", (admin_email,)).fetchone()
-        if existing_user:
-            conn.execute(
-                "UPDATE users SET is_school_admin=1, school_id=%s WHERE id=%s",
-                (school_id, existing_user["id"])
-            )
-            organizations.upsert_membership(school_id, existing_user["id"], "SCHOOL_ADMIN", conn=conn)
-            status = "applied"
-        else:
-            conn.execute(
-                "INSERT INTO school_admin_invites (email, school_id) VALUES (%s, %s)",
-                (admin_email, school_id)
-            )
-            status = "pending"
+        result = organizations.send_org_invite(
+            admin_email, school_id, "SCHOOL_ADMIN", invited_by=g.clerk_user_id, conn=conn
+        )
+        status = result["status"]
 
     return jsonify({
         "message": "École créée",
@@ -209,7 +199,9 @@ def delete_school(school_id):
             return jsonify({"error": "Impossible : des étudiants sont encore rattachés à cette école"}), 409
 
         conn.execute("DELETE FROM users WHERE school_id=%s AND is_school_admin=1", (school_id,))
-        conn.execute("DELETE FROM school_admin_invites WHERE school_id=%s", (school_id,))
+        conn.execute("DELETE FROM pending_org_invites WHERE organization_id=%s", (school_id,))
+        conn.execute("DELETE FROM organization_members WHERE organization_id=%s", (school_id,))
+        conn.execute("DELETE FROM subscriptions WHERE organization_id=%s", (school_id,))
         deleted = conn.execute("DELETE FROM schools WHERE id=%s", (school_id,))
 
     if deleted.rowcount == 0:

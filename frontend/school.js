@@ -174,10 +174,148 @@ async function loadDashboard(opts = {}) {
     }
 }
 
+function renderSeats(seats) {
+    const { used, limit } = seats;
+    if (limit === null || limit === undefined) {
+        el('seatsLabel').textContent = `${used} siège(s) utilisé(s) — illimité`;
+        el('seatsBarFill').style.width = '0%';
+        el('seatsSub').textContent = '';
+        return;
+    }
+    const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 100;
+    el('seatsLabel').textContent = `${used} / ${limit} sièges utilisés`;
+    const fill = el('seatsBarFill');
+    fill.style.width = `${pct}%`;
+    fill.classList.toggle('full', used >= limit);
+    el('seatsSub').textContent = used >= limit
+        ? 'Capacité atteinte — contacte Mockly pour augmenter le nombre de sièges.'
+        : `${limit - used} siège(s) disponible(s)`;
+}
+
+function renderPendingInvites(invited) {
+    const section = el('pendingInvitesSection');
+    if (!invited || invited.length === 0) {
+        section.classList.add('hidden');
+        return;
+    }
+    section.classList.remove('hidden');
+    el('pendingInvitesList').innerHTML = invited.map((inv) => {
+        const name = [inv.first_name, inv.last_name].filter(Boolean).join(' ');
+        return `
+            <div class="pending-invite-row">
+                <span class="pending-invite-email">${escHtml(name ? `${name} — ${inv.email}` : inv.email)}</span>
+                <span class="pending-invite-date">${escHtml((inv.created_at || '').slice(0, 10))}</span>
+            </div>
+        `;
+    }).join('');
+}
+
+async function loadStudentsPanel() {
+    try {
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/school/students`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Erreur');
+        renderSeats(data.seats);
+        renderPendingInvites(data.invited);
+    } catch (error) {
+        el('seatsLabel').textContent = error.message;
+    }
+}
+
+async function inviteStudent(event) {
+    event.preventDefault();
+    const status = el('inviteStatus');
+    const formData = new FormData(event.target);
+    const email = (formData.get('email') || '').trim();
+    if (!email) return;
+
+    status.textContent = 'Invitation...';
+    try {
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/school/students/invite`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email,
+                first_name: formData.get('first_name'),
+                last_name: formData.get('last_name'),
+            }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || data.reason || 'Erreur');
+
+        status.innerHTML = `Invitation envoyée ${mIcon('check-circle')}`;
+        event.target.reset();
+        loadStudentsPanel();
+    } catch (error) {
+        status.textContent = error.message;
+    }
+}
+
+function renderCsvReport(data) {
+    const rows = [
+        ...data.created.map((r) => ({ ...r, kind: 'ok', label: 'Invité' })),
+        ...data.skipped.map((r) => ({ ...r, kind: 'skip', label: 'Ignoré' })),
+        ...data.failed.map((r) => ({ ...r, kind: 'fail', label: 'Échec' })),
+    ];
+    if (rows.length === 0) {
+        el('csvImportReport').innerHTML = '';
+        return;
+    }
+    el('csvImportReport').innerHTML = `
+        <table class="import-report-table">
+            <thead><tr><th>Email</th><th>Statut</th><th>Détail</th></tr></thead>
+            <tbody>
+                ${rows.map((r) => `
+                    <tr>
+                        <td>${escHtml(r.email || '')}</td>
+                        <td><span class="import-report-status ${r.kind}">${r.label}</span></td>
+                        <td>${escHtml(r.reason || '')}</td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+}
+
+async function handleCsvFile(file) {
+    const hint = el('csvImportHint');
+    hint.textContent = 'Import en cours...';
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/school/students/import-csv`, {
+            method: 'POST',
+            body: formData,
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Erreur');
+
+        renderCsvReport(data);
+        renderSeats(data.seats);
+        loadStudentsPanel();
+        hint.textContent = `${data.created.length} invitation(s) envoyée(s), ${data.skipped.length} ignorée(s), ${data.failed.length} échec(s).`;
+    } catch (error) {
+        hint.textContent = error.message;
+    }
+}
+
 function initSchoolPage() {
     el('refreshBtn').addEventListener('click', () => loadDashboard());
     el('bulkCreditForm').addEventListener('submit', submitBulkCredits);
+    el('inviteForm').addEventListener('submit', inviteStudent);
+
+    const csvInput = el('csvFileInput');
+    el('csvImportZone').addEventListener('click', () => csvInput.click());
+    csvInput.addEventListener('change', () => {
+        if (csvInput.files[0]) {
+            handleCsvFile(csvInput.files[0]);
+            csvInput.value = '';
+        }
+    });
+
     loadDashboard();
+    loadStudentsPanel();
 }
 
 document.addEventListener('DOMContentLoaded', initSchoolPage);

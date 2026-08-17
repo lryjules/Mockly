@@ -132,7 +132,7 @@ def get_or_create_local_user(clerk_user_id: str) -> dict:
             if row["email"] and row["email"].lower() in _ADMIN_EMAILS and not row["is_admin"]:
                 conn.execute("UPDATE users SET is_admin=1 WHERE id=%s", (clerk_user_id,))
                 changed = True
-            changed = _apply_pending_school_invite(conn, clerk_user_id, row["email"]) or changed
+            changed = _apply_pending_org_invite(conn, clerk_user_id, row["email"]) or changed
             if changed:
                 row = conn.execute("SELECT * FROM users WHERE id=%s", (clerk_user_id,)).fetchone()
             return dict(row)
@@ -144,7 +144,7 @@ def get_or_create_local_user(clerk_user_id: str) -> dict:
             (clerk_user_id, email, "", is_admin)
         )
         conn.execute("INSERT INTO informations_pro (user_id) VALUES (%s)", (clerk_user_id,))
-        _apply_pending_school_invite(conn, clerk_user_id, email)
+        _apply_pending_org_invite(conn, clerk_user_id, email)
         row = conn.execute("SELECT * FROM users WHERE id=%s", (clerk_user_id,)).fetchone()
         return dict(row)
 
@@ -161,20 +161,23 @@ def session_owned_by_current_user(conn, session_id: str) -> bool:
     return not row["user_id"] or row["user_id"] == g.clerk_user_id
 
 
-def _apply_pending_school_invite(conn, clerk_user_id: str, email: str) -> bool:
-    """Si un admin a créé une école pour cet email avant qu'il n'ait de compte
-    Clerk (ou avant sa première visite), applique l'invitation en attente."""
+def _apply_pending_org_invite(conn, clerk_user_id: str, email: str) -> bool:
+    """Si un admin (plateforme ou école) a invité cet email avant qu'il n'ait
+    de compte Clerk (ou avant sa première visite), applique l'invitation en
+    attente — quel que soit le rôle (SCHOOL_ADMIN, CAREER_MANAGER, STUDENT),
+    voir api/organizations.py::send_org_invite."""
     if not email:
         return False
     invite = conn.execute(
-        "SELECT school_id FROM school_admin_invites WHERE email=%s", (email.lower(),)
+        "SELECT organization_id, role FROM pending_org_invites WHERE email=%s", (email.lower(),)
     ).fetchone()
     if not invite:
         return False
+    is_school_admin = 1 if invite["role"] == "SCHOOL_ADMIN" else 0
     conn.execute(
-        "UPDATE users SET is_school_admin=1, school_id=%s WHERE id=%s",
-        (invite["school_id"], clerk_user_id)
+        "UPDATE users SET is_school_admin=%s, school_id=%s WHERE id=%s",
+        (is_school_admin, invite["organization_id"], clerk_user_id)
     )
-    conn.execute("DELETE FROM school_admin_invites WHERE email=%s", (email.lower(),))
-    organizations.upsert_membership(invite["school_id"], clerk_user_id, "SCHOOL_ADMIN", conn=conn)
+    conn.execute("DELETE FROM pending_org_invites WHERE email=%s", (email.lower(),))
+    organizations.upsert_membership(invite["organization_id"], clerk_user_id, invite["role"], conn=conn)
     return True

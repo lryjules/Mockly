@@ -51,6 +51,22 @@ _SCHEMA_STATEMENTS = [
         UNIQUE(organization_id, user_id)
     )
     """,
+    # Remplace school_admin_invites (généralisée à tout rôle, plus seulement
+    # SCHOOL_ADMIN) : invitation posée avant que la personne n'ait de compte
+    # Clerk, consommée à son premier login (voir
+    # api/clerk_auth.py::_apply_pending_org_invite). first_name/last_name
+    # permettent d'afficher un roster lisible avant même l'inscription.
+    """
+    CREATE TABLE IF NOT EXISTS pending_org_invites (
+        email           TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL REFERENCES schools(id),
+        role            TEXT NOT NULL CHECK (role IN ('SCHOOL_ADMIN','CAREER_MANAGER','STUDENT')),
+        first_name      TEXT,
+        last_name       TEXT,
+        invited_by      TEXT REFERENCES users(id),
+        created_at      TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
+    )
+    """,
 ]
 
 
@@ -89,6 +105,20 @@ def init_tables() -> None:
                    VALUES (%s, %s, %s, 'active')
                    ON CONFLICT (organization_id, user_id) DO NOTHING""",
                 (user["school_id"], user["id"], role),
+            )
+
+        # Reprend les invitations encore en attente dans l'ancienne table
+        # (school_admin_invites) — aucune n'est perdue au renommage/généralisation.
+        # L'ancienne table n'est pas supprimée automatiquement (DROP TABLE est
+        # une opération destructive, à faire manuellement une fois la bascule
+        # confirmée en prod).
+        legacy_invites = conn.execute("SELECT email, school_id FROM school_admin_invites").fetchall()
+        for invite in legacy_invites:
+            conn.execute(
+                """INSERT INTO pending_org_invites (email, organization_id, role)
+                   VALUES (%s, %s, 'SCHOOL_ADMIN')
+                   ON CONFLICT (email) DO NOTHING""",
+                (invite["email"], invite["school_id"]),
             )
 
 
@@ -176,3 +206,95 @@ def has_active_subscription(organization_id: str) -> bool:
     if row["status"] == "canceled":
         return bool(row["period_still_current"])
     return False
+
+
+def get_seat_usage(organization_id: str, conn=None) -> dict:
+    """{"used": int, "limit": int|None}. Un siège est compté dès l'invitation,
+    pas seulement à l'activation — sinon un admin pourrait inviter largement
+    au-delà de sa capacité sans jamais être bloqué avant que les invités
+    n'acceptent. Somme de deux sources plutôt qu'une ligne organization_members
+    par invité : organization_members.user_id est NOT NULL (référence un
+    compte réel), donc impossible d'y représenter un invité qui n'a pas encore
+    de compte Clerk — pending_org_invites EST la réservation de siège tant que
+    l'invitation n'est pas consommée (voir send_org_invite /
+    api/clerk_auth.py::_apply_pending_org_invite, qui supprime la ligne
+    pending_org_invites exactement quand la ligne organization_members
+    'active' correspondante est créée — jamais de double-comptage)."""
+    if conn is not None:
+        active = conn.execute(
+            """SELECT COUNT(*) FROM organization_members
+               WHERE organization_id=%s AND role='STUDENT' AND status='active'""",
+            (organization_id,),
+        ).fetchone()[0]
+        invited = conn.execute(
+            "SELECT COUNT(*) FROM pending_org_invites WHERE organization_id=%s AND role='STUDENT'",
+            (organization_id,),
+        ).fetchone()[0]
+        sub = conn.execute(
+            "SELECT student_limit FROM subscriptions WHERE organization_id=%s", (organization_id,)
+        ).fetchone()
+        return {"used": active + invited, "limit": sub["student_limit"] if sub else None}
+    with get_db() as conn:
+        return get_seat_usage(organization_id, conn=conn)
+
+
+def has_available_seats(organization_id: str, additional: int = 1, conn=None) -> bool:
+    """limit=None -> illimité (valeur par défaut à la création d'une école,
+    voir get_or_create_subscription) -> toujours True."""
+    usage = get_seat_usage(organization_id, conn=conn)
+    if usage["limit"] is None:
+        return True
+    return usage["used"] + additional <= usage["limit"]
+
+
+def send_org_invite(email: str, organization_id: str, role: str,
+                     invited_by: str | None = None,
+                     first_name: str | None = None, last_name: str | None = None,
+                     conn=None) -> dict:
+    """Rattache immédiatement un compte Clerk déjà existant sans école, sinon
+    envoie une vraie invitation par email via l'API Clerk (le client Clerk
+    est importé ici, pas en haut du fichier, pour éviter un import circulaire
+    avec api/clerk_auth.py qui importe déjà ce module).
+
+    Renvoie {"status": "applied"|"pending"|"already_member"|"conflict"|"failed", "reason"?: str}.
+    Ne laisse jamais de ligne pending_org_invites orpheline si l'appel Clerk échoue."""
+    if conn is None:
+        with get_db() as conn:
+            return send_org_invite(email, organization_id, role, invited_by, first_name, last_name, conn=conn)
+
+    existing_user = conn.execute("SELECT id, school_id FROM users WHERE email=%s", (email,)).fetchone()
+    if existing_user:
+        if existing_user["school_id"] == organization_id:
+            return {"status": "already_member"}
+        if existing_user["school_id"]:
+            return {"status": "conflict", "reason": "Cet email appartient déjà à une autre organisation"}
+        conn.execute(
+            "UPDATE users SET school_id=%s, is_school_admin=%s WHERE id=%s",
+            (organization_id, 1 if role == "SCHOOL_ADMIN" else 0, existing_user["id"]),
+        )
+        upsert_membership(organization_id, existing_user["id"], role, conn=conn)
+        return {"status": "applied"}
+
+    if conn.execute("SELECT email FROM pending_org_invites WHERE email=%s", (email,)).fetchone():
+        return {"status": "already_member", "reason": "Invitation déjà en attente pour cet email"}
+
+    conn.execute(
+        """INSERT INTO pending_org_invites (email, organization_id, role, first_name, last_name, invited_by)
+           VALUES (%s, %s, %s, %s, %s, %s)""",
+        (email, organization_id, role, first_name, last_name, invited_by),
+    )
+
+    from api.clerk_auth import _clerk_client
+    if _clerk_client is None:
+        conn.execute("DELETE FROM pending_org_invites WHERE email=%s", (email,))
+        return {"status": "failed", "reason": "Authentification Clerk non configurée côté serveur"}
+    try:
+        _clerk_client.invitations.create(request={
+            "email_address": email,
+            "public_metadata": {"organization_id": organization_id, "role": role},
+        })
+    except Exception as e:
+        conn.execute("DELETE FROM pending_org_invites WHERE email=%s", (email,))
+        return {"status": "failed", "reason": str(e)}
+
+    return {"status": "pending"}

@@ -150,6 +150,65 @@
 
     .weak-name { font-weight: 600; color: var(--vscode-text-bright); }
     .weak-category { font-size: 0.7rem; color: var(--vscode-text-muted); }
+
+    .seats-bar-track {
+      height: 10px;
+      background: var(--vscode-line);
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 0.5rem;
+    }
+    .seats-bar-fill {
+      height: 100%;
+      background: var(--vscode-blue);
+      border-radius: 999px;
+      transition: width 0.3s ease;
+    }
+    .seats-bar-fill.full { background: #ff6b6b; }
+    .seats-label { font-size: 0.85rem; color: var(--vscode-text-bright); font-weight: 600; }
+    .seats-sub { font-size: 0.75rem; color: var(--vscode-text-muted); margin-top: 0.2rem; }
+
+    .invite-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.9rem; margin-bottom: 1.25rem; }
+    .invite-form label { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.78rem; color: var(--vscode-text-muted); }
+    .invite-form input {
+      background: var(--vscode-line);
+      border: 1px solid var(--vscode-border);
+      border-radius: 6px;
+      padding: 0.5rem 0.6rem;
+      color: var(--vscode-text);
+      font: inherit;
+      font-size: 0.85rem;
+    }
+    .invite-form input:focus { outline: none; border-color: var(--vscode-blue); }
+    .invite-form input[name="email"] { width: 220px; }
+    .invite-status { font-size: 0.8rem; color: var(--vscode-blue); }
+
+    .csv-import-zone {
+      border: 2px dashed var(--vscode-border);
+      border-radius: 8px;
+      padding: 1.2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: var(--transition);
+      margin-bottom: 1rem;
+    }
+    .csv-import-zone:hover { border-color: var(--vscode-blue); background: rgba(86, 156, 214, 0.05); }
+    .csv-import-hint { font-size: 0.75rem; color: var(--vscode-text-muted); margin-top: 0.3rem; }
+
+    .import-report-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; margin-top: 0.75rem; }
+    .import-report-table th {
+      text-align: left; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em;
+      color: var(--vscode-text-muted); padding: 0.5rem; border-bottom: 1px solid var(--vscode-border);
+    }
+    .import-report-table td { padding: 0.5rem; border-bottom: 1px solid var(--vscode-border); }
+    .import-report-status { font-size: 0.7rem; font-weight: 700; padding: 0.1rem 0.5rem; border-radius: 999px; }
+    .import-report-status.ok { color: var(--vscode-green); background: rgba(78, 201, 176, 0.14); }
+    .import-report-status.skip { color: var(--vscode-orange); background: rgba(220, 220, 170, 0.14); }
+    .import-report-status.fail { color: #ff6b6b; background: rgba(255, 107, 107, 0.14); }
+
+    .pending-invite-row { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid var(--vscode-border); font-size: 0.82rem; }
+    .pending-invite-email { color: var(--vscode-text-bright); }
+    .pending-invite-date { color: var(--vscode-text-muted); font-size: 0.72rem; }
   </style>
 </head>
 <body>
@@ -179,6 +238,44 @@
         <div class="kpi-section-title"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#bar-chart"></use></svg> KPIs du pool</div>
         <div class="kpi-section-subtitle" id="kpiSubtitle"></div>
         <div class="kpi-grid" id="kpiGrid"></div>
+      </section>
+
+      <section class="kpi-section">
+        <div class="kpi-section-title"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#users"></use></svg> Sièges & invitations</div>
+        <div class="kpi-section-subtitle">Invite tes élèves un par un, ou importe un fichier CSV (colonnes <code>first_name,last_name,email</code>, 300 lignes max).</div>
+
+        <div id="seatsSummary">
+          <span class="seats-label" id="seatsLabel">Chargement…</span>
+          <div class="seats-bar-track"><div class="seats-bar-fill" id="seatsBarFill" style="width:0%"></div></div>
+          <div class="seats-sub" id="seatsSub"></div>
+        </div>
+
+        <form id="inviteForm" class="invite-form" style="margin-top:1.25rem;">
+          <label>Email
+            <input type="email" name="email" required placeholder="eleve@ecole.fr">
+          </label>
+          <label>Prénom
+            <input type="text" name="first_name" placeholder="optionnel">
+          </label>
+          <label>Nom
+            <input type="text" name="last_name" placeholder="optionnel">
+          </label>
+          <button type="submit" class="primary-btn">Inviter</button>
+          <span class="invite-status" id="inviteStatus"></span>
+        </form>
+
+        <input type="file" id="csvFileInput" accept=".csv" hidden>
+        <div class="csv-import-zone" id="csvImportZone">
+          <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#file-text"></use></svg>
+          Cliquer pour importer un fichier CSV d'élèves
+          <div class="csv-import-hint" id="csvImportHint">Colonnes attendues : first_name, last_name, email</div>
+        </div>
+        <div id="csvImportReport"></div>
+
+        <div id="pendingInvitesSection" class="hidden" style="margin-top:1.25rem;">
+          <div class="kpi-section-subtitle" style="margin-bottom:0.5rem;">Invitations en attente</div>
+          <div id="pendingInvitesList"></div>
+        </div>
       </section>
 
       <section class="kpi-section">
