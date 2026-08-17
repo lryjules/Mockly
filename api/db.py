@@ -331,3 +331,7 @@ def init_db() -> None:
     # Fondations multi-tenant (organisation/rôles/abonnement)
     from api import organizations
     organizations.init_tables()
+
+    # Idempotence des webhooks Stripe (voir api/stripe_gateway.py)
+    from api import stripe_gateway
+    stripe_gateway.init_tables()

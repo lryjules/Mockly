@@ -10,4 +10,5 @@ gTTS>=2.5.0
 gunicorn>=21.0.0
 python-dotenv>=0.9.9
 rapidfuzz>=3.0
+stripe>=11.0
 

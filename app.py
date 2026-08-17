@@ -40,6 +40,7 @@ from api.routes.profile_routes import profile_bp
 from api.routes.sessions_routes import sessions_bp
 from api.routes.admin_routes import admin_bp
 from api.routes.school_routes import school_bp
+from api.routes.billing_routes import billing_bp
 from api.routes.pages_routes import pages_bp
 
 app = Flask(__name__, static_folder=None)
@@ -127,6 +128,7 @@ app.register_blueprint(profile_bp)
 app.register_blueprint(sessions_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(school_bp)
+app.register_blueprint(billing_bp)
 app.register_blueprint(pages_bp)  # toujours en dernier : contient la route catch-all "/<path:path>"
 
 # pages_bp sert le HTML/CSS/JS statique (et le catch-all) : jamais de raison
