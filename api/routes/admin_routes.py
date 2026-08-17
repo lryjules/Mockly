@@ -103,12 +103,16 @@ def list_schools():
                    COUNT(DISTINCT u.id) FILTER (WHERE u.is_admin = 0 AND u.is_school_admin = 0) AS nb_students,
                    admin_u.id    AS admin_id,
                    admin_u.email AS admin_email,
-                   inv.email     AS pending_admin_email
+                   inv.email     AS pending_admin_email,
+                   sub.status               AS subscription_status,
+                   sub.student_limit        AS student_limit,
+                   sub.current_period_end   AS current_period_end
             FROM schools sc
             LEFT JOIN users u ON u.school_id = sc.id
             LEFT JOIN users admin_u ON admin_u.school_id = sc.id AND admin_u.is_school_admin = 1
             LEFT JOIN pending_org_invites inv ON inv.organization_id = sc.id AND inv.role = 'SCHOOL_ADMIN'
-            GROUP BY sc.id, admin_u.id, admin_u.email, inv.email
+            LEFT JOIN subscriptions sub ON sub.organization_id = sc.id
+            GROUP BY sc.id, admin_u.id, admin_u.email, inv.email, sub.status, sub.student_limit, sub.current_period_end
             ORDER BY sc.name
         """).fetchall()
 

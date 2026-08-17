@@ -333,6 +333,23 @@
       font-size: 0.82rem;
     }
     .payment-link-copy-btn:hover { border-color: var(--vscode-blue); color: var(--vscode-blue); }
+
+    .subscription-badge {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 0.1rem 0.55rem;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .subscription-badge.active,
+    .subscription-badge.trialing { color: var(--vscode-green); background: rgba(78, 201, 176, 0.14); }
+    .subscription-badge.past_due { color: var(--vscode-orange); background: rgba(220, 220, 170, 0.14); }
+    .subscription-badge.canceled,
+    .subscription-badge.expired { color: #ff6b6b; background: rgba(255, 107, 107, 0.14); }
+    .subscription-badge.none { color: var(--vscode-text-muted); background: var(--vscode-line); }
+    .subscription-seats { font-size: 0.72rem; color: var(--vscode-text-muted); margin-top: 0.25rem; }
   </style>
 </head>
 <body>
@@ -407,6 +424,7 @@
               <th>École</th>
               <th>Compte de gestion</th>
               <th>Élèves</th>
+              <th>Abonnement</th>
               <th>Créée le</th>
               <th>Pool bonus mensuel (tokens)</th>
               <th></th>

@@ -166,6 +166,21 @@
     }
     .seats-bar-fill.full { background: #ff6b6b; }
     .seats-label { font-size: 0.85rem; color: var(--vscode-text-bright); font-weight: 600; }
+    .subscription-badge {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 0.1rem 0.55rem;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-left: 0.5rem;
+    }
+    .subscription-badge.active,
+    .subscription-badge.trialing { color: var(--vscode-green); background: rgba(78, 201, 176, 0.14); }
+    .subscription-badge.past_due { color: var(--vscode-orange); background: rgba(220, 220, 170, 0.14); }
+    .subscription-badge.canceled,
+    .subscription-badge.expired { color: #ff6b6b; background: rgba(255, 107, 107, 0.14); }
     .seats-sub { font-size: 0.75rem; color: var(--vscode-text-muted); margin-top: 0.2rem; }
 
     .invite-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.9rem; margin-bottom: 1.25rem; }
@@ -245,7 +260,7 @@
         <div class="kpi-section-subtitle">Invite tes élèves un par un, ou importe un fichier CSV (colonnes <code>first_name,last_name,email</code>, 300 lignes max).</div>
 
         <div id="seatsSummary">
-          <span class="seats-label" id="seatsLabel">Chargement…</span>
+          <span class="seats-label" id="seatsLabel">Chargement…</span><span id="subscriptionStatusBadge"></span>
           <div class="seats-bar-track"><div class="seats-bar-fill" id="seatsBarFill" style="width:0%"></div></div>
           <div class="seats-sub" id="seatsSub"></div>
         </div>

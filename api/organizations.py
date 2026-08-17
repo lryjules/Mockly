@@ -209,7 +209,7 @@ def has_active_subscription(organization_id: str) -> bool:
 
 
 def get_seat_usage(organization_id: str, conn=None) -> dict:
-    """{"used": int, "limit": int|None}. Un siège est compté dès l'invitation,
+    """{"used": int, "limit": int|None, "status": str|None}. Un siège est compté dès l'invitation,
     pas seulement à l'activation — sinon un admin pourrait inviter largement
     au-delà de sa capacité sans jamais être bloqué avant que les invités
     n'acceptent. Somme de deux sources plutôt qu'une ligne organization_members
@@ -231,9 +231,13 @@ def get_seat_usage(organization_id: str, conn=None) -> dict:
             (organization_id,),
         ).fetchone()[0]
         sub = conn.execute(
-            "SELECT student_limit FROM subscriptions WHERE organization_id=%s", (organization_id,)
+            "SELECT student_limit, status FROM subscriptions WHERE organization_id=%s", (organization_id,)
         ).fetchone()
-        return {"used": active + invited, "limit": sub["student_limit"] if sub else None}
+        return {
+            "used": active + invited,
+            "limit": sub["student_limit"] if sub else None,
+            "status": sub["status"] if sub else None,
+        }
     with get_db() as conn:
         return get_seat_usage(organization_id, conn=conn)
 

@@ -174,8 +174,22 @@ async function loadDashboard(opts = {}) {
     }
 }
 
+const SUBSCRIPTION_LABELS = {
+    trialing: 'Essai', active: 'Actif', past_due: 'Impayé', canceled: 'Résilié', expired: 'Expiré',
+};
+
+function renderSubscriptionBadge(status) {
+    const badge = el('subscriptionStatusBadge');
+    if (!status) {
+        badge.innerHTML = '';
+        return;
+    }
+    badge.innerHTML = `<span class="subscription-badge ${status}">${escHtml(SUBSCRIPTION_LABELS[status] || status)}</span>`;
+}
+
 function renderSeats(seats) {
-    const { used, limit } = seats;
+    const { used, limit, status } = seats;
+    renderSubscriptionBadge(status);
     if (limit === null || limit === undefined) {
         el('seatsLabel').textContent = `${used} siège(s) utilisé(s) — illimité`;
         el('seatsBarFill').style.width = '0%';

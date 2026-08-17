@@ -273,9 +273,23 @@ async function openUsersModal() {
     }
 }
 
+const SUBSCRIPTION_LABELS = {
+    trialing: 'Essai', active: 'Actif', past_due: 'Impayé', canceled: 'Résilié', expired: 'Expiré',
+};
+
+function subscriptionBadge(s) {
+    const status = s.subscription_status;
+    const cls = status || 'none';
+    const label = status ? (SUBSCRIPTION_LABELS[status] || status) : 'Aucun';
+    const seats = s.student_limit !== null && s.student_limit !== undefined
+        ? `<div class="subscription-seats">${s.nb_students} / ${s.student_limit} sièges</div>`
+        : '';
+    return `<span class="subscription-badge ${cls}">${escHtml(label)}</span>${seats}`;
+}
+
 function renderSchoolsTable(schools) {
     if (schools.length === 0) {
-        el('schoolsTableBody').innerHTML = '<tr><td colspan="6">Aucune école créée pour l\'instant.</td></tr>';
+        el('schoolsTableBody').innerHTML = '<tr><td colspan="7">Aucune école créée pour l\'instant.</td></tr>';
         return;
     }
     el('schoolsTableBody').innerHTML = schools.map((s) => `
@@ -283,6 +297,7 @@ function renderSchoolsTable(schools) {
             <td>${escHtml(s.name)}</td>
             <td>${escHtml(s.admin_email || s.pending_admin_email || '—')}${!s.admin_email && s.pending_admin_email ? ' <span class="admin-badge">en attente</span>' : ''}</td>
             <td>${s.nb_students}</td>
+            <td>${subscriptionBadge(s)}</td>
             <td>${escHtml((s.created_at || '').slice(0, 10))}</td>
             <td>
                 <div class="token-bonus-editor" data-school="${s.id}">
