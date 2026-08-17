@@ -25,7 +25,7 @@ from api import school_metrics
 from api import token_budget
 from api import organizations
 from api.security import limiter, validate_length
-from api.clerk_auth import require_auth, get_or_create_local_user
+from api.clerk_auth import require_auth, require_org_role
 
 school_bp = Blueprint("school", __name__)
 
@@ -45,34 +45,19 @@ def _valid_email(email: str) -> bool:
     return bool(_EMAIL_RE.match(email))
 
 
-def _get_school_admin(clerk_user_id: str | None):
-    """Renvoie le profil local si cet utilisateur Clerk est un compte "profil école" valide, sinon None."""
-    if not clerk_user_id:
-        return None
-    row = get_or_create_local_user(clerk_user_id)
-    if not row or not row["is_school_admin"] or not row["school_id"]:
-        return None
-    return row
-
-
 @school_bp.route("/api/school/dashboard", methods=["GET"])
 @require_auth
+@require_org_role("SCHOOL_ADMIN", "CAREER_MANAGER", require_subscription=True)
 def get_dashboard():
-    admin = _get_school_admin(g.clerk_user_id)
-    if not admin:
-        return jsonify({"error": "Accès réservé aux comptes école"}), 403
-
-    dashboard = school_metrics.get_school_dashboard(admin["school_id"])
+    dashboard = school_metrics.get_school_dashboard(g.organization_id)
     return jsonify(dashboard)
 
 
 @school_bp.route("/api/school/students/<student_id>/token-bonus", methods=["POST"])
 @require_auth
+@require_org_role("SCHOOL_ADMIN", require_subscription=True)
 @limiter.limit("60 per hour")
 def update_student_token_bonus(student_id):
-    admin = _get_school_admin(g.clerk_user_id)
-    if not admin:
-        return jsonify({"error": "Accès réservé aux comptes école"}), 403
     data = request.get_json(force=True)
 
     if "bonus_daily_token_limit" not in data:
@@ -84,7 +69,7 @@ def update_student_token_bonus(student_id):
 
     with get_db() as conn:
         student = conn.execute(
-            "SELECT id FROM users WHERE id=%s AND school_id=%s", (student_id, admin["school_id"])
+            "SELECT id FROM users WHERE id=%s AND school_id=%s", (student_id, g.organization_id)
         ).fetchone()
         if not student:
             return jsonify({"error": "Élève introuvable dans ton école"}), 404
@@ -99,12 +84,10 @@ def update_student_token_bonus(student_id):
 
 @school_bp.route("/api/school/token-bonus/bulk", methods=["POST"])
 @require_auth
+@require_org_role("SCHOOL_ADMIN", require_subscription=True)
 @limiter.limit("20 per hour")
 def bulk_update_token_bonus():
     """Ajoute (ou retire, avec un delta négatif) un bonus quotidien à tout le pool d'élèves de l'école."""
-    admin = _get_school_admin(g.clerk_user_id)
-    if not admin:
-        return jsonify({"error": "Accès réservé aux comptes école"}), 403
     data = request.get_json(force=True)
 
     if "bonus_daily_token_limit_delta" not in data:
@@ -118,11 +101,11 @@ def bulk_update_token_bonus():
         conn.execute(
             f"UPDATE users SET bonus_daily_token_limit = LEAST({MAX_BONUS_DAILY_TOKENS}, GREATEST(0, bonus_daily_token_limit + %s)) "
             "WHERE school_id=%s AND is_admin=0 AND is_school_admin=0",
-            (delta, admin["school_id"])
+            (delta, g.organization_id)
         )
         nb_students = conn.execute(
             "SELECT COUNT(*) FROM users WHERE school_id=%s AND is_admin=0 AND is_school_admin=0",
-            (admin["school_id"],)
+            (g.organization_id,)
         ).fetchone()[0]
 
     return jsonify({"message": "Bonus de tokens mis à jour", "nb_students": nb_students})
@@ -130,27 +113,24 @@ def bulk_update_token_bonus():
 
 @school_bp.route("/api/school/students", methods=["GET"])
 @require_auth
+@require_org_role("SCHOOL_ADMIN", "CAREER_MANAGER", require_subscription=True)
 def list_school_students():
     """Roster combiné : élèves actifs + invitations en attente, plus l'état
     des sièges. Route additive — ne remplace pas /api/school/dashboard."""
-    admin = _get_school_admin(g.clerk_user_id)
-    if not admin:
-        return jsonify({"error": "Accès réservé aux comptes école"}), 403
-
     with get_db() as conn:
         active = conn.execute(
             """SELECT id, email, created_at FROM users
                WHERE school_id=%s AND is_admin=0 AND is_school_admin=0
                ORDER BY created_at DESC""",
-            (admin["school_id"],)
+            (g.organization_id,)
         ).fetchall()
         invited = conn.execute(
             """SELECT email, first_name, last_name, created_at FROM pending_org_invites
                WHERE organization_id=%s AND role='STUDENT'
                ORDER BY created_at DESC""",
-            (admin["school_id"],)
+            (g.organization_id,)
         ).fetchall()
-        seats = organizations.get_seat_usage(admin["school_id"], conn=conn)
+        seats = organizations.get_seat_usage(g.organization_id, conn=conn)
 
     return jsonify({
         "active": [{"id": r["id"], "email": r["email"], "created_at": r["created_at"]} for r in active],
@@ -162,18 +142,19 @@ def list_school_students():
     })
 
 
+INVITABLE_ROLES = ("STUDENT", "CAREER_MANAGER")
+
+
 @school_bp.route("/api/school/students/invite", methods=["POST"])
 @require_auth
+@require_org_role("SCHOOL_ADMIN", require_subscription=True)
 @limiter.limit("60 per hour")
 def invite_student():
-    admin = _get_school_admin(g.clerk_user_id)
-    if not admin:
-        return jsonify({"error": "Accès réservé aux comptes école"}), 403
-
     data = request.get_json(force=True)
     email = (data.get("email") or "").strip().lower()
     first_name = (data.get("first_name") or "").strip() or None
     last_name = (data.get("last_name") or "").strip() or None
+    role = (data.get("role") or "STUDENT").strip().upper()
 
     if not email:
         return jsonify({"error": "Email requis"}), 400
@@ -181,19 +162,23 @@ def invite_student():
         return err
     if not _valid_email(email):
         return jsonify({"error": "Adresse email invalide"}), 400
+    if role not in INVITABLE_ROLES:
+        return jsonify({"error": f"Rôle invalide (attendu : {', '.join(INVITABLE_ROLES)})"}), 400
     for label, value in (("Prénom", first_name), ("Nom", last_name)):
         if value and (err := validate_length(value, label, MAX_NAME_LEN)):
             return err
 
-    if not organizations.has_available_seats(admin["school_id"]):
-        usage = organizations.get_seat_usage(admin["school_id"])
+    # Le décompte de sièges ne concerne que les élèves — un career manager
+    # n'occupe pas un siège élève (voir organizations.get_seat_usage).
+    if role == "STUDENT" and not organizations.has_available_seats(g.organization_id):
+        usage = organizations.get_seat_usage(g.organization_id)
         return jsonify({
             "error": f"Plus de siège disponible ({usage['used']}/{usage['limit']} utilisés)",
             "seats": usage,
         }), 409
 
     result = organizations.send_org_invite(
-        email, admin["school_id"], "STUDENT", invited_by=admin["id"],
+        email, g.organization_id, role, invited_by=g.clerk_user_id,
         first_name=first_name, last_name=last_name,
     )
     status_code = {
@@ -205,15 +190,12 @@ def invite_student():
 
 @school_bp.route("/api/school/students/import-csv", methods=["POST"])
 @require_auth
+@require_org_role("SCHOOL_ADMIN", require_subscription=True)
 @limiter.limit("10 per hour")
 def import_students_csv():
     """CSV attendu : colonnes first_name,last_name,email (en-tête insensible
     à la casse). Rejet atomique si les sièges disponibles ne suffisent pas
     pour toutes les nouvelles lignes — jamais d'import partiel silencieux."""
-    admin = _get_school_admin(g.clerk_user_id)
-    if not admin:
-        return jsonify({"error": "Accès réservé aux comptes école"}), 403
-
     if "file" not in request.files:
         return jsonify({"error": "Aucun fichier fourni"}), 400
     file = request.files["file"]
@@ -269,11 +251,11 @@ def import_students_csv():
     if not parsed:
         return jsonify({
             "created": [], "skipped": skipped, "failed": [],
-            "seats": organizations.get_seat_usage(admin["school_id"]),
+            "seats": organizations.get_seat_usage(g.organization_id),
         })
 
-    if not organizations.has_available_seats(admin["school_id"], additional=len(parsed)):
-        usage = organizations.get_seat_usage(admin["school_id"])
+    if not organizations.has_available_seats(g.organization_id, additional=len(parsed)):
+        usage = organizations.get_seat_usage(g.organization_id)
         available = (usage["limit"] - usage["used"]) if usage["limit"] is not None else None
         return jsonify({
             "error": (
@@ -286,7 +268,7 @@ def import_students_csv():
     created, failed = [], []
     for entry in parsed:
         result = organizations.send_org_invite(
-            entry["email"], admin["school_id"], "STUDENT", invited_by=admin["id"],
+            entry["email"], g.organization_id, "STUDENT", invited_by=g.clerk_user_id,
             first_name=entry["first_name"], last_name=entry["last_name"],
         )
         if result["status"] in ("applied", "pending"):
@@ -298,5 +280,5 @@ def import_students_csv():
 
     return jsonify({
         "created": created, "skipped": skipped, "failed": failed,
-        "seats": organizations.get_seat_usage(admin["school_id"]),
+        "seats": organizations.get_seat_usage(g.organization_id),
     })

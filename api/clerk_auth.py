@@ -104,6 +104,47 @@ def optional_auth(f):
     return wrapper
 
 
+def require_super_admin(f):
+    """Remplace le pattern répété `if not _is_admin(g.clerk_user_id): 403`
+    (api/routes/admin_routes.py) par un décorateur unique. À empiler APRÈS
+    @require_auth (a besoin de g.clerk_user_id déjà posé)."""
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        row = get_or_create_local_user(g.clerk_user_id)
+        if not row or not row["is_admin"]:
+            return jsonify({"error": "Accès réservé aux administrateurs"}), 403
+        return f(*args, **kwargs)
+    return wrapper
+
+
+def require_org_role(*allowed_roles: str, require_subscription: bool = False):
+    """Remplace _get_school_admin (api/routes/school_routes.py). Expose
+    g.organization_id / g.org_membership au handler. require_subscription=True
+    ajoute le contrôle organizations.has_active_subscription (402 si
+    l'abonnement de l'organisation n'est plus actif). À empiler APRÈS
+    @require_auth.
+
+    Appelle get_or_create_local_user AVANT de lire organization_members :
+    c'est ce qui déclenche l'application d'une invitation en attente
+    (_apply_pending_org_invite) — sans cet appel, le tout premier login d'un
+    compte fraîchement invité échouerait (son invitation ne serait jamais
+    consommée avant la vérification du rôle)."""
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            get_or_create_local_user(g.clerk_user_id)
+            membership = organizations.get_membership(g.clerk_user_id)
+            if not membership or membership["role"] not in allowed_roles or membership["status"] != "active":
+                return jsonify({"error": "Accès non autorisé"}), 403
+            if require_subscription and not organizations.has_active_subscription(membership["organization_id"]):
+                return jsonify({"error": "Abonnement de l'organisation inactif ou expiré"}), 402
+            g.organization_id = membership["organization_id"]
+            g.org_membership = membership
+            return f(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
 def _fetch_clerk_email(clerk_user_id: str) -> str:
     try:
         user = _clerk_client.users.get(user_id=clerk_user_id)

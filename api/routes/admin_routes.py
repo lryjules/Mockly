@@ -15,7 +15,7 @@ from api import admin_metrics
 from api import token_budget
 from api import organizations
 from api.security import limiter, validate_length
-from api.clerk_auth import require_auth, get_or_create_local_user
+from api.clerk_auth import require_auth, require_super_admin
 
 admin_bp = Blueprint("admin", __name__)
 
@@ -24,28 +24,18 @@ MAX_EMAIL_LEN = 254
 MAX_BONUS_DAILY_TOKENS = token_budget.MAX_DAILY_TOKEN_LIMIT - token_budget.DEFAULT_DAILY_TOKEN_LIMIT
 
 
-def _is_admin(clerk_user_id: str | None) -> bool:
-    if not clerk_user_id:
-        return False
-    row = get_or_create_local_user(clerk_user_id)
-    return bool(row and row["is_admin"])
-
-
 @admin_bp.route("/api/admin/kpis", methods=["GET"])
 @require_auth
+@require_super_admin
 def get_kpis():
-    if not _is_admin(g.clerk_user_id):
-        return jsonify({"error": "Accès réservé aux administrateurs"}), 403
-
     return jsonify(admin_metrics.get_all_kpis())
 
 
 @admin_bp.route("/api/admin/business-metrics", methods=["POST"])
 @require_auth
+@require_super_admin
 @limiter.limit("30 per hour")
 def save_business_metrics():
-    if not _is_admin(g.clerk_user_id):
-        return jsonify({"error": "Accès réservé aux administrateurs"}), 403
     data = request.get_json(force=True)
 
     metrics = data.get("metrics") or {}
@@ -75,10 +65,8 @@ def save_business_metrics():
 
 @admin_bp.route("/api/admin/users", methods=["GET"])
 @require_auth
+@require_super_admin
 def list_users():
-    if not _is_admin(g.clerk_user_id):
-        return jsonify({"error": "Accès réservé aux administrateurs"}), 403
-
     today = token_budget.today()
     with get_db() as conn:
         rows = conn.execute("""
@@ -106,10 +94,8 @@ def list_users():
 
 @admin_bp.route("/api/admin/schools", methods=["GET"])
 @require_auth
+@require_super_admin
 def list_schools():
-    if not _is_admin(g.clerk_user_id):
-        return jsonify({"error": "Accès réservé aux administrateurs"}), 403
-
     with get_db() as conn:
         rows = conn.execute("""
             SELECT sc.id, sc.name, sc.created_at,
@@ -138,6 +124,7 @@ def list_schools():
 
 @admin_bp.route("/api/admin/schools", methods=["POST"])
 @require_auth
+@require_super_admin
 @limiter.limit("20 per hour")
 def create_school():
     """Crée une école et désigne son compte de gestion par email.
@@ -145,11 +132,9 @@ def create_school():
     Avec Clerk, on ne crée plus de mot de passe local : si `admin_email` a déjà
     un compte Clerk (donc une ligne locale déjà provisionnée), la promotion
     is_school_admin/school_id est appliquée immédiatement ; sinon elle est mise
-    en attente (school_admin_invites) et appliquée à son premier login Clerk
-    (voir api/clerk_auth.py::_apply_pending_school_invite)."""
+    en attente (pending_org_invites) et appliquée à son premier login Clerk
+    (voir api/clerk_auth.py::_apply_pending_org_invite)."""
     data = request.get_json(force=True)
-    if not _is_admin(g.clerk_user_id):
-        return jsonify({"error": "Accès réservé aux administrateurs"}), 403
 
     name = (data.get("name") or "").strip()
     admin_email = (data.get("admin_email") or "").strip().lower()
@@ -186,11 +171,9 @@ def create_school():
 
 @admin_bp.route("/api/admin/schools/<school_id>", methods=["DELETE"])
 @require_auth
+@require_super_admin
 @limiter.limit("20 per hour")
 def delete_school(school_id):
-    if not _is_admin(g.clerk_user_id):
-        return jsonify({"error": "Accès réservé aux administrateurs"}), 403
-
     with get_db() as conn:
         nb_linked = conn.execute(
             "SELECT COUNT(*) FROM users WHERE school_id=%s AND is_school_admin=0", (school_id,)
@@ -212,14 +195,13 @@ def delete_school(school_id):
 
 @admin_bp.route("/api/admin/users/<target_user_id>/token-bonus", methods=["POST"])
 @require_auth
+@require_super_admin
 @limiter.limit("60 per hour")
 def update_user_token_bonus(target_user_id):
     """Ajuste le bonus quotidien de tokens (au-delà du quota gratuit de
     token_budget.DEFAULT_DAILY_TOKEN_LIMIT) d'un utilisateur. Contrairement à
     l'école (voir school_routes.py), l'admin plateforme n'est pas contraint
     par un pool mensuel : c'est lui qui définit le pool de chaque école."""
-    if not _is_admin(g.clerk_user_id):
-        return jsonify({"error": "Accès réservé aux administrateurs"}), 403
     data = request.get_json(force=True)
 
     if "bonus_daily_token_limit" not in data:
@@ -244,12 +226,11 @@ def update_user_token_bonus(target_user_id):
 
 @admin_bp.route("/api/admin/schools/<school_id>/token-pool", methods=["POST"])
 @require_auth
+@require_super_admin
 @limiter.limit("60 per hour")
 def update_school_token_pool(school_id):
     """Définit le pool mensuel de tokens bonus qu'une école peut distribuer à
     ses élèves — c'est le levier de facturation/plan de l'admin plateforme."""
-    if not _is_admin(g.clerk_user_id):
-        return jsonify({"error": "Accès réservé aux administrateurs"}), 403
     data = request.get_json(force=True)
 
     if "monthly_bonus_token_pool" not in data:
