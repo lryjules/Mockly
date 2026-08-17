@@ -108,3 +108,17 @@ def get_profile_competencies():
                 comp["school_rank_total"] = ranking["total"]
 
     return jsonify(tree)
+
+
+@profile_bp.route("/api/profile/priority-skills", methods=["GET"])
+@require_auth
+def get_priority_skills_route():
+    """3 compétences clés à travailler en priorité pour l'objectif de carrière
+    déclaré (informations_pro.target_domain/current_goal) — voir
+    profile_engine.get_priority_skills. Aucun appel IA : matching ESCO local."""
+    get_or_create_local_user(g.clerk_user_id)
+    infos = get_informations_pro(g.clerk_user_id) or {}
+    result = profile_engine.get_priority_skills(
+        g.clerk_user_id, infos.get("target_domain", ""), infos.get("current_goal", "")
+    )
+    return jsonify(result)

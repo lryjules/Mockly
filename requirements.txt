@@ -9,4 +9,5 @@ google-genai>=1.0.0
 gTTS>=2.5.0
 gunicorn>=21.0.0
 python-dotenv>=0.9.9
+rapidfuzz>=3.0
 

@@ -21,6 +21,46 @@
     .profile-header h1 { font-size: 1.3rem; color: var(--vscode-text-bright); margin-bottom: 0.4rem; }
     .profile-header p { color: var(--vscode-text-muted); font-size: 0.9rem; line-height: 1.6; }
 
+    .priority-skills {
+      background: var(--vscode-sidebar);
+      border: 1px solid var(--vscode-border);
+      border-radius: 14px;
+      padding: var(--space-5);
+      margin-bottom: var(--space-6);
+    }
+    .priority-skills-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--vscode-text-bright);
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      margin-bottom: var(--space-2);
+    }
+    .priority-skills-subtitle {
+      font-size: 0.8rem;
+      color: var(--vscode-text-muted);
+      line-height: 1.5;
+      margin-bottom: var(--space-4);
+    }
+    .priority-skills-list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+    .priority-skill-row {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-3);
+      background: rgba(86, 156, 214, 0.08);
+      border: 1px solid rgba(86, 156, 214, 0.22);
+      border-radius: 10px;
+      padding: var(--space-3) var(--space-4);
+    }
+    .priority-skill-icon { color: var(--vscode-blue); flex-shrink: 0; margin-top: 0.1rem; }
+    .priority-skill-name { font-size: 0.85rem; font-weight: 600; color: var(--vscode-text-bright); }
+    .priority-skill-reason { font-size: 0.75rem; color: var(--vscode-text-muted); margin-top: 0.15rem; }
+
     .profile-locked,
     .profile-empty {
       text-align: center;
@@ -121,6 +161,8 @@
     <div id="profileLocked" class="profile-locked hidden">
       Connecte-toi pour voir ta progression. <a href="auth.html">Se connecter</a>
     </div>
+
+    <div id="prioritySkills" class="priority-skills hidden"></div>
 
     <div id="profileEmpty" class="profile-empty hidden">
       <div class="profile-empty-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#sprout"></use></svg></div>

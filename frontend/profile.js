@@ -43,6 +43,32 @@ function renderCompetencyRow(comp) {
     `;
 }
 
+function renderPrioritySkills(data) {
+    const container = document.getElementById('prioritySkills');
+    if (!data || !data.matched_occupation || !data.skills || data.skills.length === 0) {
+        container.classList.add('hidden');
+        container.innerHTML = '';
+        return;
+    }
+
+    container.classList.remove('hidden');
+    container.innerHTML = `
+        <div class="priority-skills-title">${mIcon('target')} Compétences clés pour "${escHtml(data.matched_occupation)}"</div>
+        <div class="priority-skills-subtitle">D'après les compétences essentielles de ce métier (référentiel ESCO), voici où concentrer tes efforts en priorité.</div>
+        <div class="priority-skills-list">
+            ${data.skills.map((skill) => `
+                <div class="priority-skill-row">
+                    <span class="priority-skill-icon">${mIcon('zap')}</span>
+                    <div>
+                        <div class="priority-skill-name">${escHtml(skill.name)}</div>
+                        <div class="priority-skill-reason">${escHtml(skill.reason)}</div>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
 function renderTree(tree) {
     const container = document.getElementById('profileTree');
     const hasAny = CATEGORY_ORDER.some((cat) => (tree[cat] || []).length > 0);
@@ -72,9 +98,12 @@ async function loadProfile() {
     }
 
     try {
-        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/profile/competencies`);
-        const tree = await response.json();
-        renderTree(tree);
+        const [treeResponse, priorityResponse] = await Promise.all([
+            window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/profile/competencies`),
+            window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/profile/priority-skills`),
+        ]);
+        renderTree(await treeResponse.json());
+        renderPrioritySkills(await priorityResponse.json());
     } catch (error) {
         document.getElementById('profileTree').innerHTML = `
             <div class="profile-empty">${mIcon('alert-triangle')} Erreur de connexion. Vérifie que le serveur est lancé.</div>`;

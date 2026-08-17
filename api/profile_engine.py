@@ -13,6 +13,7 @@ Distinction clé dans le modèle de données :
 from datetime import datetime, timezone
 
 from api.db import get_db
+from api import esco_engine
 
 RECENCY_WEIGHT = 0.4
 DEFAULT_NEUTRAL_SCORE = 50.0
@@ -24,6 +25,14 @@ RANKING_CATEGORIES = ("technique", "métier")
 # En dessous, l'échantillon est trop petit pour être parlant (un élève seul
 # sur une compétence de niche se verrait "1er sur 1") : on n'affiche rien.
 MIN_STUDENTS_FOR_RANKING = 5
+
+# get_priority_skills : une compétence essentielle du métier visé est jugée
+# "faible" (donc éligible aux 3 compétences clés) en dessous de ce score.
+# Aligné sur DEFAULT_NEUTRAL_SCORE, déjà utilisé plus bas comme référence
+# neutre — sous la moyenne neutre, on considère que ça vaut la peine de
+# travailler cette compétence en priorité.
+LOW_SCORE_THRESHOLD = 50.0
+MAX_PRIORITY_SKILLS = 3
 
 _SCHEMA_STATEMENTS = [
     """
@@ -59,6 +68,11 @@ def init_tables() -> None:
             conn.execute(statement)
         # Migration douce si la table existait déjà sans la colonne 'declared'.
         conn.execute("ALTER TABLE student_competency ADD COLUMN IF NOT EXISTS declared INTEGER NOT NULL DEFAULT 0")
+        # esco_uri : rattachement (interne, jamais affiché) à un skill ESCO — sert
+        # à dédupliquer les libellés proches et au gap-analysis de get_priority_skills.
+        # Nullable : les lignes existantes restent NULL jusqu'à leur prochaine
+        # écriture (backfill paresseux, voir seed_declared_competencies).
+        conn.execute("ALTER TABLE student_competency ADD COLUMN IF NOT EXISTS esco_uri TEXT")
 
 
 def _now() -> str:
@@ -96,25 +110,37 @@ def get_all_competencies(student_id: str, evaluated_only: bool = False) -> list[
 
 
 def get_or_create_competency(student_id: str, name: str, category: str = "autre",
-                               declared: bool = False, conn=None) -> dict:
+                               declared: bool = False, esco_uri: str | None = None,
+                               conn=None) -> dict:
     """Renvoie la compétence existante, ou la crée.
 
     declared=True ne s'applique qu'à la création : si la compétence existe déjà
     (même juste déclarée), on ne l'écrase pas ici — seule update_profile_tree
     modifie current_score/evaluation_count suite à une vraie évaluation.
 
+    esco_uri (calculé par l'appelant via esco_engine.match_skill, jamais ici —
+    ce module ne dépend pas d'esco_engine) : métadonnée interne, ne remplace
+    jamais `name` affiché. Sur une ligne existante sans esco_uri, on la
+    backfille (COALESCE) plutôt que d'écraser un éventuel match déjà présent.
+
     Passe `conn` pour réutiliser une connexion déjà ouverte plutôt que d'en
     ouvrir une nouvelle (voir get_competency)."""
     if conn is not None:
         existing = get_competency(student_id, name, conn=conn)
         if existing:
+            if esco_uri and not existing["esco_uri"]:
+                conn.execute(
+                    "UPDATE student_competency SET esco_uri = %s WHERE id = %s",
+                    (esco_uri, existing["id"]),
+                )
+                existing = get_competency(student_id, name, conn=conn)
             return existing
         conn.execute(
             """INSERT INTO student_competency
-               (student_id, name, category, current_score, evaluation_count, declared, updated_at)
-               VALUES (%s, %s, %s, 0, 0, %s, %s)
+               (student_id, name, category, current_score, evaluation_count, declared, esco_uri, updated_at)
+               VALUES (%s, %s, %s, 0, 0, %s, %s, %s)
                ON CONFLICT (student_id, name) DO NOTHING""",
-            (student_id, name, category, int(declared), _now()),
+            (student_id, name, category, int(declared), esco_uri, _now()),
         )
         return get_competency(student_id, name, conn=conn)
 
@@ -125,10 +151,10 @@ def get_or_create_competency(student_id: str, name: str, category: str = "autre"
     with get_db() as conn:
         conn.execute(
             """INSERT INTO student_competency
-               (student_id, name, category, current_score, evaluation_count, declared, updated_at)
-               VALUES (%s, %s, %s, 0, 0, %s, %s)
+               (student_id, name, category, current_score, evaluation_count, declared, esco_uri, updated_at)
+               VALUES (%s, %s, %s, 0, 0, %s, %s, %s)
                ON CONFLICT (student_id, name) DO NOTHING""",
-            (student_id, name, category, int(declared), _now()),
+            (student_id, name, category, int(declared), esco_uri, _now()),
         )
     return get_competency(student_id, name)
 
@@ -154,16 +180,23 @@ def seed_declared_competencies(student_id: str, names: list[str],
         return
 
     now = _now()
-    rows = [(student_id, name, category_map.get(name, "autre"), 0, 0, 1, now) for name in cleaned_names]
-    placeholders = ", ".join(["(%s,%s,%s,%s,%s,%s,%s)"] * len(rows))
+    # esco_engine.match_skill est une fonction pure (index en mémoire, aucun
+    # accès DB) — l'appeler ici n'ajoute aucune connexion Postgres au batch.
+    rows = []
+    for name in cleaned_names:
+        match = esco_engine.match_skill(name)
+        esco_uri = match["uri"] if match else None
+        rows.append((student_id, name, category_map.get(name, "autre"), 0, 0, 1, esco_uri, now))
+    placeholders = ", ".join(["(%s,%s,%s,%s,%s,%s,%s,%s)"] * len(rows))
     flat_params = [value for row in rows for value in row]
 
     with get_db() as conn:
         conn.execute(
             f"""INSERT INTO student_competency
-               (student_id, name, category, current_score, evaluation_count, declared, updated_at)
+               (student_id, name, category, current_score, evaluation_count, declared, esco_uri, updated_at)
                VALUES {placeholders}
-               ON CONFLICT (student_id, name) DO NOTHING""",
+               ON CONFLICT (student_id, name) DO UPDATE
+               SET esco_uri = COALESCE(student_competency.esco_uri, EXCLUDED.esco_uri)""",
             flat_params,
         )
 
@@ -214,7 +247,9 @@ def update_profile_tree(student_id: str, session_id: str,
     with get_db() as conn:
         for name, new_score in competency_scores.items():
             category = category_map.get(name, "autre")
-            comp = get_or_create_competency(student_id, name, category, conn=conn)
+            match = esco_engine.match_skill(name)
+            esco_uri = match["uri"] if match else None
+            comp = get_or_create_competency(student_id, name, category, esco_uri=esco_uri, conn=conn)
 
             if comp["evaluation_count"] == 0:
                 updated_score = new_score
@@ -224,9 +259,9 @@ def update_profile_tree(student_id: str, session_id: str,
             conn.execute(
                 """UPDATE student_competency
                    SET current_score = %s, evaluation_count = evaluation_count + 1,
-                       category = %s, updated_at = %s
+                       category = %s, esco_uri = COALESCE(esco_uri, %s), updated_at = %s
                    WHERE id = %s""",
-                (updated_score, category, _now(), comp["id"]),
+                (updated_score, category, esco_uri, _now(), comp["id"]),
             )
 
             save_evaluation_history(comp["id"], session_id, new_score, feedback_map.get(name, ""), conn=conn)
@@ -349,3 +384,54 @@ def finalize_interview_session(student_id: str, session_id: str,
 
     if competency_scores:
         update_profile_tree(student_id, session_id, competency_scores, category_map, feedback_map)
+
+
+def get_priority_skills(student_id: str, target_domain: str, current_goal: str) -> dict:
+    """"3 compétences clés à maîtriser" pour l'objectif de carrière déclaré.
+
+    Matche (target_domain + current_goal) vers le métier ESCO le plus proche,
+    récupère ses compétences essentielles, et les compare à l'arbre de
+    l'étudiant (via esco_uri — jamais par nom, le nom est du texte libre).
+    Si l'objectif est trop vague pour un match fiable, ou l'étudiant n'a pas
+    encore déclaré d'objectif, on ne force rien : {"matched_occupation": None,
+    "skills": []}. Une compétence esco_uri jamais rattachée à une ligne
+    existante (lignes non encore backfillées, voir seed_declared_competencies)
+    apparaît comme manquante — on sous-estime la couverture plutôt que de la
+    sur-estimer.
+    """
+    goal_text = f"{target_domain or ''} {current_goal or ''}".strip()
+    if not goal_text:
+        return {"matched_occupation": None, "skills": []}
+
+    occupation = esco_engine.match_occupation(goal_text)
+    if not occupation:
+        return {"matched_occupation": None, "skills": []}
+
+    essential_skills = esco_engine.get_essential_skills_for_occupation(occupation["uri"])
+    if not essential_skills:
+        return {"matched_occupation": occupation["pref_label"], "skills": []}
+
+    student_by_esco_uri = {
+        row["esco_uri"]: row for row in get_all_competencies(student_id) if row["esco_uri"]
+    }
+
+    missing = []
+    weak = []
+    for skill in essential_skills:
+        comp = student_by_esco_uri.get(skill["uri"])
+        if comp is None:
+            missing.append({
+                "name": skill["pref_label"],
+                "reason": "Compétence essentielle du métier visé, absente de ton profil.",
+            })
+        elif comp["evaluation_count"] == 0 or comp["current_score"] < LOW_SCORE_THRESHOLD:
+            weak.append({
+                "name": skill["pref_label"],
+                "reason": (
+                    "Mentionnée mais jamais évaluée à l'oral." if comp["evaluation_count"] == 0
+                    else f"Score actuel : {round(comp['current_score'])}/100."
+                ),
+            })
+
+    ranked = missing + weak
+    return {"matched_occupation": occupation["pref_label"], "skills": ranked[:MAX_PRIORITY_SKILLS]}
