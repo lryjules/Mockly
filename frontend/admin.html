@@ -292,6 +292,47 @@
     }
     .school-delete-btn:hover { border-color: #ff6b6b; }
     .school-delete-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .payment-link-btn {
+      background: none;
+      border: 1px solid var(--vscode-border);
+      border-radius: 6px;
+      color: var(--vscode-blue);
+      cursor: pointer;
+      padding: 0.3rem 0.6rem;
+      font-size: 0.78rem;
+      margin-right: 0.4rem;
+    }
+    .payment-link-btn:hover { border-color: var(--vscode-blue); }
+
+    .payment-link-modal { width: min(480px, 100%); }
+    .payment-link-form { display: flex; flex-direction: column; gap: 0.9rem; padding: 0.5rem 1.25rem 1.25rem; }
+    .payment-link-form label { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.78rem; color: var(--vscode-text-muted); }
+    .payment-link-form select,
+    .payment-link-form input {
+      background: var(--vscode-line);
+      border: 1px solid var(--vscode-border);
+      border-radius: 6px;
+      padding: 0.5rem 0.6rem;
+      color: var(--vscode-text);
+      font: inherit;
+      font-size: 0.85rem;
+    }
+    .payment-link-form select:focus,
+    .payment-link-form input:focus { outline: none; border-color: var(--vscode-blue); }
+    .payment-link-status { font-size: 0.8rem; color: var(--vscode-blue); }
+    .payment-link-result { display: flex; gap: 0.5rem; }
+    .payment-link-result input { flex: 1; }
+    .payment-link-copy-btn {
+      background: var(--vscode-line);
+      border: 1px solid var(--vscode-border);
+      border-radius: 6px;
+      color: var(--vscode-text);
+      cursor: pointer;
+      padding: 0.5rem 0.8rem;
+      font-size: 0.82rem;
+    }
+    .payment-link-copy-btn:hover { border-color: var(--vscode-blue); color: var(--vscode-blue); }
   </style>
 </head>
 <body>
@@ -399,6 +440,29 @@
           <tbody id="usersTableBody"></tbody>
         </table>
       </div>
+    </div>
+  </div>
+
+  <div id="paymentLinkModalBackdrop" class="users-modal-backdrop hidden">
+    <div class="users-modal payment-link-modal">
+      <div class="users-modal-header">
+        <h2 id="paymentLinkModalTitle">Lien de paiement</h2>
+        <button id="closePaymentLinkModal" class="modal-close-btn" type="button">×</button>
+      </div>
+      <form id="paymentLinkForm" class="payment-link-form">
+        <label>Plan Stripe
+          <select name="price_id" id="paymentLinkPriceSelect" required></select>
+        </label>
+        <label>Nombre de sièges (élèves)
+          <input type="number" name="quantity" min="1" step="1" required placeholder="ex: 500">
+        </label>
+        <button type="submit" class="primary-btn">Générer le lien</button>
+        <span class="payment-link-status" id="paymentLinkStatus"></span>
+        <div id="paymentLinkResult" class="payment-link-result hidden">
+          <input type="text" id="paymentLinkUrl" readonly>
+          <button type="button" class="payment-link-copy-btn" id="paymentLinkCopyBtn">Copier</button>
+        </div>
+      </form>
     </div>
   </div>
 

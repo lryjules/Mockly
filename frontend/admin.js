@@ -291,10 +291,16 @@ function renderSchoolsTable(schools) {
                 </div>
                 <div class="kpi-tile-meta">${fmtNum(s.monthly_bonus_tokens_used)} utilisés ce mois</div>
             </td>
-            <td><button type="button" class="school-delete-btn" data-school="${s.id}" ${s.nb_students > 0 ? 'disabled title="Retire d\'abord les élèves de cette école"' : ''}>Supprimer</button></td>
+            <td>
+                <button type="button" class="payment-link-btn" data-school="${s.id}" data-school-name="${escHtml(s.name)}">Lien de paiement</button>
+                <button type="button" class="school-delete-btn" data-school="${s.id}" ${s.nb_students > 0 ? 'disabled title="Retire d\'abord les élèves de cette école"' : ''}>Supprimer</button>
+            </td>
         </tr>
     `).join('');
 
+    el('schoolsTableBody').querySelectorAll('.payment-link-btn').forEach((btn) => {
+        btn.addEventListener('click', () => openPaymentLinkModal(btn.dataset.school, btn.dataset.schoolName));
+    });
     el('schoolsTableBody').querySelectorAll('.school-delete-btn').forEach((btn) => {
         btn.addEventListener('click', () => deleteSchool(btn.dataset.school));
     });
@@ -384,6 +390,82 @@ function closeUsersModal() {
     el('usersModalBackdrop').classList.add('hidden');
 }
 
+let paymentLinkSchoolId = null;
+
+async function openPaymentLinkModal(schoolId, schoolName) {
+    paymentLinkSchoolId = schoolId;
+    el('paymentLinkModalTitle').textContent = `Lien de paiement — ${schoolName}`;
+    el('paymentLinkStatus').textContent = '';
+    el('paymentLinkResult').classList.add('hidden');
+    el('paymentLinkForm').reset();
+
+    const select = el('paymentLinkPriceSelect');
+    select.innerHTML = '<option>Chargement des plans...</option>';
+    select.disabled = true;
+    el('paymentLinkModalBackdrop').classList.remove('hidden');
+
+    try {
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/admin/stripe/prices`);
+        const prices = await response.json();
+        if (!response.ok) throw new Error(prices.error || 'Erreur');
+        if (prices.length === 0) {
+            select.innerHTML = '<option value="">Aucun plan actif trouvé dans Stripe</option>';
+            return;
+        }
+        select.innerHTML = prices.map((p) => {
+            const amount = p.unit_amount !== null && p.unit_amount !== undefined ? (p.unit_amount / 100).toFixed(2) : '?';
+            const label = `${p.product_name}${p.nickname ? ` (${p.nickname})` : ''} — ${amount} ${(p.currency || '').toUpperCase()}${p.interval ? `/${p.interval}` : ''}`;
+            return `<option value="${escHtml(p.id)}">${escHtml(label)}</option>`;
+        }).join('');
+    } catch (error) {
+        select.innerHTML = `<option value="">${escHtml(error.message)}</option>`;
+    } finally {
+        select.disabled = false;
+    }
+}
+
+function closePaymentLinkModal() {
+    el('paymentLinkModalBackdrop').classList.add('hidden');
+    paymentLinkSchoolId = null;
+}
+
+async function submitPaymentLinkForm(event) {
+    event.preventDefault();
+    const status = el('paymentLinkStatus');
+    const formData = new FormData(event.target);
+    const priceId = formData.get('price_id');
+    const quantity = formData.get('quantity');
+
+    if (!priceId) {
+        status.textContent = 'Sélectionne un plan.';
+        return;
+    }
+
+    status.textContent = 'Génération...';
+    el('paymentLinkResult').classList.add('hidden');
+    try {
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/admin/schools/${paymentLinkSchoolId}/payment-link`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ price_id: priceId, quantity: parseInt(quantity, 10) }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Erreur');
+
+        status.innerHTML = `Lien généré ${mIcon('check-circle')} — à envoyer manuellement à l'école.`;
+        el('paymentLinkUrl').value = data.url;
+        el('paymentLinkResult').classList.remove('hidden');
+    } catch (error) {
+        status.textContent = error.message;
+    }
+}
+
+function copyPaymentLinkUrl() {
+    const input = el('paymentLinkUrl');
+    input.select();
+    navigator.clipboard?.writeText(input.value);
+}
+
 function initAdminPage() {
     el('refreshBtn').addEventListener('click', () => loadKpis());
     el('closeUsersModal').addEventListener('click', closeUsersModal);
@@ -394,6 +476,14 @@ function initAdminPage() {
         if (e.target.closest('#registeredUsersTile')) openUsersModal();
     });
     el('schoolCreateForm').addEventListener('submit', createSchool);
+
+    el('closePaymentLinkModal').addEventListener('click', closePaymentLinkModal);
+    el('paymentLinkModalBackdrop').addEventListener('click', (e) => {
+        if (e.target === el('paymentLinkModalBackdrop')) closePaymentLinkModal();
+    });
+    el('paymentLinkForm').addEventListener('submit', submitPaymentLinkForm);
+    el('paymentLinkCopyBtn').addEventListener('click', copyPaymentLinkUrl);
+
     loadKpis();
     loadSchools();
 }
