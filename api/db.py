@@ -305,6 +305,10 @@ _COLUMN_MIGRATIONS = [
     "ALTER TABLE schools ADD COLUMN IF NOT EXISTS monthly_bonus_tokens_used INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE schools ADD COLUMN IF NOT EXISTS monthly_bonus_reset_month TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE ai_call_log ADD COLUMN IF NOT EXISTS user_id TEXT",
+    # Fondations multi-tenant (voir api/organizations.py) : statut opérationnel
+    # de l'organisation, distinct du statut d'abonnement (table subscriptions).
+    "ALTER TABLE schools ADD COLUMN IF NOT EXISTS slug TEXT",
+    "ALTER TABLE schools ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active'",
 ]
 
 
@@ -323,3 +327,7 @@ def init_db() -> None:
     # Tables du profil de compétences (arbre socle)
     from api import profile_engine
     profile_engine.init_tables()
+
+    # Fondations multi-tenant (organisation/rôles/abonnement)
+    from api import organizations
+    organizations.init_tables()

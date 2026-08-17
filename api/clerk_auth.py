@@ -21,6 +21,7 @@ from clerk_backend_api import Clerk
 from clerk_backend_api.security.types import AuthenticateRequestOptions
 
 from api.db import get_db
+from api import organizations
 
 CLERK_SECRET_KEY = os.environ.get("CLERK_SECRET_KEY", "")
 CLERK_PUBLISHABLE_KEY = os.environ.get("CLERK_PUBLISHABLE_KEY", "")
@@ -175,4 +176,5 @@ def _apply_pending_school_invite(conn, clerk_user_id: str, email: str) -> bool:
         (invite["school_id"], clerk_user_id)
     )
     conn.execute("DELETE FROM school_admin_invites WHERE email=%s", (email.lower(),))
+    organizations.upsert_membership(invite["school_id"], clerk_user_id, "SCHOOL_ADMIN", conn=conn)
     return True

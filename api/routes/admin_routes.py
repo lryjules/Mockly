@@ -13,6 +13,7 @@ from flask import Blueprint, request, jsonify, g
 from api.db import get_db
 from api import admin_metrics
 from api import token_budget
+from api import organizations
 from api.security import limiter, validate_length
 from api.clerk_auth import require_auth, get_or_create_local_user
 
@@ -169,6 +170,7 @@ def create_school():
 
         school_id = str(uuid.uuid4())
         conn.execute("INSERT INTO schools (id, name) VALUES (%s, %s)", (school_id, name))
+        organizations.get_or_create_subscription(school_id, conn=conn)
 
         existing_user = conn.execute("SELECT id FROM users WHERE email=%s", (admin_email,)).fetchone()
         if existing_user:
@@ -176,6 +178,7 @@ def create_school():
                 "UPDATE users SET is_school_admin=1, school_id=%s WHERE id=%s",
                 (school_id, existing_user["id"])
             )
+            organizations.upsert_membership(school_id, existing_user["id"], "SCHOOL_ADMIN", conn=conn)
             status = "applied"
         else:
             conn.execute(

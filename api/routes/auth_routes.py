@@ -13,6 +13,7 @@ from api.db import get_db
 from api.user_helpers import get_informations_pro
 from api.security import limiter, validate_length
 from api.clerk_auth import require_auth, get_or_create_local_user, CLERK_PUBLISHABLE_KEY
+from api import organizations
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -74,6 +75,7 @@ def set_my_school():
         if not school:
             return jsonify({"error": "École inconnue"}), 400
         conn.execute("UPDATE users SET school_id=%s WHERE id=%s", (school_id, g.clerk_user_id))
+        organizations.upsert_membership(school_id, g.clerk_user_id, "STUDENT", conn=conn)
         row = conn.execute("SELECT * FROM users WHERE id=%s", (g.clerk_user_id,)).fetchone()
 
     return jsonify({"user": _user_payload(dict(row))})
