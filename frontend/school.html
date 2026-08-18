@@ -221,7 +221,21 @@
     .import-report-status.skip { color: var(--vscode-orange); background: rgba(220, 220, 170, 0.14); }
     .import-report-status.fail { color: #ff6b6b; background: rgba(255, 107, 107, 0.14); }
 
-    .pending-invite-row { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid var(--vscode-border); font-size: 0.82rem; }
+    .pending-invite-row { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; padding: 0.5rem 0; border-bottom: 1px solid var(--vscode-border); font-size: 0.82rem; }
+    .pending-invite-email { flex: 1; }
+
+    .student-remove-btn,
+    .pending-invite-cancel-btn {
+      background: none;
+      border: 1px solid var(--vscode-border);
+      border-radius: 6px;
+      color: #ff6b6b;
+      cursor: pointer;
+      padding: 0.3rem 0.6rem;
+      font-size: 0.78rem;
+    }
+    .student-remove-btn:hover,
+    .pending-invite-cancel-btn:hover { border-color: #ff6b6b; }
     .pending-invite-email { color: var(--vscode-text-bright); }
     .pending-invite-date { color: var(--vscode-text-muted); font-size: 0.72rem; }
   </style>
@@ -332,6 +346,7 @@
               <th>Score moyen</th>
               <th>Tokens aujourd'hui</th>
               <th>Bonus quotidien (tokens)</th>
+              <th></th>
             </tr>
           </thead>
           <tbody id="studentsTableBody"></tbody>

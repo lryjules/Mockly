@@ -81,6 +81,7 @@ function renderStudentsTable(students) {
             <td>${fmtScore10(s.average_score)}</td>
             <td class="${nearLimit ? 'token-usage-full' : ''}">${fmtNum(s.tokens_used_today)} / ${fmtNum(s.daily_token_limit)}</td>
             <td>${renderTokenBonusEditor(s.id, s.bonus_daily_token_limit)}</td>
+            <td><button type="button" class="student-remove-btn" data-student="${s.id}" data-email="${escHtml(s.email)}">Retirer</button></td>
         </tr>
     `;
     }).join('');
@@ -89,6 +90,22 @@ function renderStudentsTable(students) {
         const studentId = editor.dataset.student;
         editor.querySelector('.token-bonus-save').addEventListener('click', () => saveTokenBonus(studentId, editor));
     });
+    el('studentsTableBody').querySelectorAll('.student-remove-btn').forEach((btn) => {
+        btn.addEventListener('click', () => removeStudent(btn.dataset.student, btn.dataset.email));
+    });
+}
+
+async function removeStudent(studentId, email) {
+    if (!confirm(`Retirer ${email} de l'école ? Son compte perdra l'accès aux fonctionnalités école (ses données ne sont pas supprimées).`)) return;
+    try {
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/school/students/${studentId}`, { method: 'DELETE' });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Erreur');
+        loadDashboard({ silent: true });
+        loadStudentsPanel();
+    } catch (error) {
+        alert(error.message);
+    }
 }
 
 async function saveTokenBonus(studentId, editorEl) {
@@ -219,9 +236,30 @@ function renderPendingInvites(invited) {
             <div class="pending-invite-row">
                 <span class="pending-invite-email">${escHtml(name ? `${name} — ${inv.email}` : inv.email)}</span>
                 <span class="pending-invite-date">${escHtml((inv.created_at || '').slice(0, 10))}</span>
+                <button type="button" class="pending-invite-cancel-btn" data-email="${escHtml(inv.email)}">Annuler</button>
             </div>
         `;
     }).join('');
+
+    el('pendingInvitesList').querySelectorAll('.pending-invite-cancel-btn').forEach((btn) => {
+        btn.addEventListener('click', () => cancelPendingInvite(btn.dataset.email));
+    });
+}
+
+async function cancelPendingInvite(email) {
+    if (!confirm(`Annuler l'invitation de ${email} ?`)) return;
+    try {
+        const response = await window.MocklyAuth.fetchAuthed(`${API_BASE_URL}/school/students/invite/cancel`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Erreur');
+        loadStudentsPanel();
+    } catch (error) {
+        alert(error.message);
+    }
 }
 
 async function loadStudentsPanel() {

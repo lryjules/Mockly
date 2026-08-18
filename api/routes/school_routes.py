@@ -282,3 +282,53 @@ def import_students_csv():
         "created": created, "skipped": skipped, "failed": failed,
         "seats": organizations.get_seat_usage(g.organization_id),
     })
+
+
+@school_bp.route("/api/school/students/<student_id>", methods=["DELETE"])
+@require_auth
+@require_org_role("SCHOOL_ADMIN", require_subscription=True)
+@limiter.limit("60 per hour")
+def remove_student(student_id):
+    """Retire un élève actif de l'école — libère son siège (status='removed',
+    exclu du décompte de organizations.get_seat_usage) et son compte perd
+    l'accès aux fonctionnalités école, mais ses données (CV, entretiens,
+    profil) sont conservées, pas supprimées."""
+    with get_db() as conn:
+        student = conn.execute(
+            "SELECT id FROM users WHERE id=%s AND school_id=%s AND is_admin=0 AND is_school_admin=0",
+            (student_id, g.organization_id)
+        ).fetchone()
+        if not student:
+            return jsonify({"error": "Élève introuvable dans ton école"}), 404
+
+        conn.execute("UPDATE users SET school_id=NULL WHERE id=%s", (student_id,))
+        conn.execute(
+            "UPDATE organization_members SET status='removed' WHERE organization_id=%s AND user_id=%s",
+            (g.organization_id, student_id)
+        )
+
+    return jsonify({"message": "Élève retiré de l'école", "seats": organizations.get_seat_usage(g.organization_id)})
+
+
+@school_bp.route("/api/school/students/invite/cancel", methods=["POST"])
+@require_auth
+@require_org_role("SCHOOL_ADMIN", require_subscription=True)
+@limiter.limit("60 per hour")
+def cancel_student_invite():
+    """Annule une invitation encore en attente (l'élève n'a pas encore de
+    compte) — libère aussi son siège réservé."""
+    data = request.get_json(force=True)
+    email = (data.get("email") or "").strip().lower()
+    if not email:
+        return jsonify({"error": "Email requis"}), 400
+
+    with get_db() as conn:
+        deleted = conn.execute(
+            "DELETE FROM pending_org_invites WHERE email=%s AND organization_id=%s AND role='STUDENT'",
+            (email, g.organization_id)
+        )
+
+    if deleted.rowcount == 0:
+        return jsonify({"error": "Invitation introuvable"}), 404
+
+    return jsonify({"message": "Invitation annulée", "seats": organizations.get_seat_usage(g.organization_id)})
