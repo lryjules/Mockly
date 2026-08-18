@@ -172,12 +172,11 @@ def create_school():
         result = organizations.send_org_invite(
             admin_email, school_id, "SCHOOL_ADMIN", invited_by=g.clerk_user_id, conn=conn
         )
-        status = result["status"]
 
     return jsonify({
         "message": "École créée",
         "school": {"id": school_id, "name": name},
-        "admin_invite": {"email": admin_email, "status": status}
+        "admin_invite": {"email": admin_email, "status": result["status"], "reason": result.get("reason")}
     })
 
 

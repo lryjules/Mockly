@@ -282,6 +282,40 @@ def send_org_invite(email: str, organization_id: str, role: str,
     if conn.execute("SELECT email FROM pending_org_invites WHERE email=%s", (email,)).fetchone():
         return {"status": "already_member", "reason": "Invitation déjà en attente pour cet email"}
 
+    # Un compte Clerk peut exister pour cet email sans ligne locale (ex: son
+    # ancienne ligne `users` a été supprimée en même temps qu'une école
+    # précédente, mais son compte Clerk, lui, persiste) — clerk.invitations.create()
+    # refuse toujours d'inviter un email qui a déjà un compte dans l'app,
+    # donc vérifier directement auprès de Clerk AVANT de tenter l'envoi,
+    # plutôt que de se fier uniquement à notre table users (source d'un vrai
+    # échec silencieux observé en prod).
+    from api.clerk_auth import _clerk_client
+    if _clerk_client is not None:
+        try:
+            clerk_matches = _clerk_client.users.list(request={"email_address": [email]})
+        except Exception:
+            clerk_matches = []
+        if clerk_matches:
+            # Email déjà connu de Clerk via cette recherche : pas besoin d'un
+            # 2e appel Clerk (get_or_create_local_user referait un
+            # users.get() redondant) — on a déjà l'email, on provisionne la
+            # ligne locale directement si elle n'existe pas encore.
+            clerk_user_id = clerk_matches[0].id
+            conn.execute(
+                "INSERT INTO users (id, email, password_hash) VALUES (%s, %s, '') ON CONFLICT (id) DO NOTHING",
+                (clerk_user_id, email),
+            )
+            conn.execute(
+                "INSERT INTO informations_pro (user_id) VALUES (%s) ON CONFLICT (user_id) DO NOTHING",
+                (clerk_user_id,),
+            )
+            conn.execute(
+                "UPDATE users SET school_id=%s, is_school_admin=%s WHERE id=%s",
+                (organization_id, 1 if role == "SCHOOL_ADMIN" else 0, clerk_user_id),
+            )
+            upsert_membership(organization_id, clerk_user_id, role, conn=conn)
+            return {"status": "applied"}
+
     conn.execute(
         """INSERT INTO pending_org_invites (email, organization_id, role, first_name, last_name, invited_by)
            VALUES (%s, %s, %s, %s, %s, %s)""",

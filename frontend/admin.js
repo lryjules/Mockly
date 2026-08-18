@@ -377,9 +377,16 @@ async function createSchool(event) {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Erreur');
 
-        status.innerHTML = data.admin_invite?.status === 'pending'
-            ? `École créée ${mIcon('check-circle')} — ${escHtml(data.admin_invite.email)} recevra le rôle "profil école" dès sa première connexion.`
-            : `École créée ${mIcon('check-circle')}`;
+        const inviteStatus = data.admin_invite?.status;
+        if (inviteStatus === 'pending') {
+            status.innerHTML = `École créée ${mIcon('check-circle')} — ${escHtml(data.admin_invite.email)} recevra le rôle "profil école" dès sa première connexion.`;
+        } else if (inviteStatus === 'applied') {
+            status.innerHTML = `École créée ${mIcon('check-circle')} — ${escHtml(data.admin_invite.email)} a déjà un compte, rôle "profil école" appliqué immédiatement.`;
+        } else if (inviteStatus === 'failed' || inviteStatus === 'conflict' || inviteStatus === 'already_member') {
+            status.innerHTML = `${mIcon('alert-triangle')} École créée, mais l'attribution du compte "profil école" a échoué : ${escHtml(data.admin_invite.reason || inviteStatus)}`;
+        } else {
+            status.innerHTML = `École créée ${mIcon('check-circle')}`;
+        }
         event.target.reset();
         loadSchools();
     } catch (error) {
