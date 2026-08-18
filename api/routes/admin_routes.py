@@ -193,9 +193,12 @@ def delete_school(school_id):
         if nb_linked:
             return jsonify({"error": "Impossible : des étudiants sont encore rattachés à cette école"}), 409
 
-        conn.execute("DELETE FROM users WHERE school_id=%s AND is_school_admin=1", (school_id,))
-        conn.execute("DELETE FROM pending_org_invites WHERE organization_id=%s", (school_id,))
+        # organization_members.user_id référence users(id) sans CASCADE :
+        # supprimer d'abord les lignes qui référencent l'utilisateur avant
+        # l'utilisateur lui-même, sous peine de ForeignKeyViolation (500).
         conn.execute("DELETE FROM organization_members WHERE organization_id=%s", (school_id,))
+        conn.execute("DELETE FROM pending_org_invites WHERE organization_id=%s", (school_id,))
+        conn.execute("DELETE FROM users WHERE school_id=%s AND is_school_admin=1", (school_id,))
         conn.execute("DELETE FROM subscriptions WHERE organization_id=%s", (school_id,))
         deleted = conn.execute("DELETE FROM schools WHERE id=%s", (school_id,))
 
