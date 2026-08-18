@@ -159,7 +159,15 @@ def create_school():
 
         school_id = str(uuid.uuid4())
         conn.execute("INSERT INTO schools (id, name) VALUES (%s, %s)", (school_id, name))
+        # get_or_create_subscription() crée par défaut en 'active' (choix du
+        # backfill Phase 1, pour ne jamais couper l'accès d'écoles déjà
+        # existantes lors de l'introduction du modèle d'abonnement). Une école
+        # tout juste créée aujourd'hui n'a en revanche encore rien payé — la
+        # repasser explicitement en 'trialing' (accès conservé, cf.
+        # has_active_subscription, mais statut honnête tant que le webhook
+        # Stripe n'a pas confirmé un paiement réel).
         organizations.get_or_create_subscription(school_id, conn=conn)
+        conn.execute("UPDATE subscriptions SET status='trialing' WHERE organization_id=%s", (school_id,))
 
         result = organizations.send_org_invite(
             admin_email, school_id, "SCHOOL_ADMIN", invited_by=g.clerk_user_id, conn=conn
