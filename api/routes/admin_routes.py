@@ -193,11 +193,18 @@ def delete_school(school_id):
         if nb_linked:
             return jsonify({"error": "Impossible : des étudiants sont encore rattachés à cette école"}), 409
 
-        # organization_members.user_id référence users(id) sans CASCADE :
-        # supprimer d'abord les lignes qui référencent l'utilisateur avant
-        # l'utilisateur lui-même, sous peine de ForeignKeyViolation (500).
+        # organization_members.user_id et informations_pro.user_id référencent
+        # users(id) sans CASCADE (informations_pro existe pour CHAQUE compte,
+        # créée automatiquement à l'inscription — voir
+        # api/clerk_auth.py::get_or_create_local_user) : supprimer d'abord ce
+        # qui référence l'utilisateur avant l'utilisateur lui-même, sous peine
+        # de ForeignKeyViolation (500).
         conn.execute("DELETE FROM organization_members WHERE organization_id=%s", (school_id,))
         conn.execute("DELETE FROM pending_org_invites WHERE organization_id=%s", (school_id,))
+        conn.execute(
+            "DELETE FROM informations_pro WHERE user_id IN (SELECT id FROM users WHERE school_id=%s AND is_school_admin=1)",
+            (school_id,)
+        )
         conn.execute("DELETE FROM users WHERE school_id=%s AND is_school_admin=1", (school_id,))
         conn.execute("DELETE FROM subscriptions WHERE organization_id=%s", (school_id,))
         deleted = conn.execute("DELETE FROM schools WHERE id=%s", (school_id,))
